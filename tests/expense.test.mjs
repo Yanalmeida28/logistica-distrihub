@@ -1,0 +1,16 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createAccount,balance,localDay} from '../app/finance-domain.mjs';
+import {updateExpense,attachReceipt} from '../app/expense-domain.mjs';
+import {demoCompany} from '../app/domain.mjs';
+const actor={id:'a',companyId:demoCompany,branchId:'unidade-a',role:'administrative',active:true};
+const driver={id:'d',companyId:demoCompany,branchId:'unidade-a',role:'driver',active:true};
+const account=()=>createAccount({id:'e',code:'DES-1',type:'expense',category:'fuel',companyId:demoCompany,branchId:'unidade-a',amount:'100',description:'Teste',party:'Fornecedor ficticio',issuedDate:localDay(),dueDate:localDay()},actor);
+const details={driverId:'d',vehicle:'Veiculo ficticio',date:localDay(),odometer:'1234',liters:'20,5'};
+const receipt={id:'r',name:'teste.pdf',mime:'application/pdf',bytes:new Uint8Array([37,80,68,70,45,49])};
+test('custos preservam valor e saldo; litros e motorista da unidade',()=>{const a=updateExpense(account(),details,actor,[driver]);assert.equal(a.costDetails.liters,20.5);assert.equal(a.costDetails.odometer,1234);assert.equal(balance(a),10000);assert.equal(a.payments.length,0);});
+test('motorista de outra unidade/empresa, inativo ou papel diferente recusado',()=>{for(const patch of [{branchId:'unidade-b'},{companyId:'outra'},{active:false},{role:'collector'}])assert.throws(()=>updateExpense(account(),details,actor,[{...driver,...patch}]));});
+test('detalhes e anexos recusam outro contexto administrativo e conta cancelada',()=>{for(const patch of [{companyId:'outra'},{branchId:'unidade-b'},{role:'driver'},{active:false}]){assert.throws(()=>updateExpense(account(),details,{...actor,...patch},[driver]));assert.throws(()=>attachReceipt(account(),receipt,{...actor,...patch}));}assert.throws(()=>attachReceipt({...account(),status:'cancelled'},receipt,actor));});
+test('arquivo nao quita conta, tem copia de bytes e historico; tipos/tamanho falsos recusados',()=>{const a=attachReceipt(account(),receipt,actor);assert.equal(a.receipts.length,1);assert.notEqual(a.receipts[0].bytes,receipt.bytes);assert.equal(balance(a),10000);for(const patch of [{mime:'text/html'},{bytes:new Uint8Array([1,2,3])},{bytes:new Uint8Array(5*1024*1024+1)},{bytes:new Uint8Array()}])assert.throws(()=>attachReceipt(account(),{...receipt,...patch},actor));});
+test('limite de cinco comprovantes e id duplicado',()=>{let a=account();for(let n=0;n<5;n++)a=attachReceipt(a,{...receipt,id:'r'+n},actor);assert.throws(()=>attachReceipt(a,{...receipt,id:'r6'},actor));assert.throws(()=>attachReceipt(attachReceipt(account(),receipt,actor),receipt,actor));});
+test('alimentacao disponivel e numeros negativos ou invalidos recusados',()=>{assert.equal(createAccount({...account(),category:'food',amount:'10'},actor).category,'food');for(const patch of [{liters:'-1'},{odometer:'abc'},{date:'2099-01-01'}])assert.throws(()=>updateExpense(account(),{...details,...patch},actor,[driver]));});

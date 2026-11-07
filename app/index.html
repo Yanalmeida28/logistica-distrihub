@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="description" content="Protótipo local de acompanhamento de cargas. Somente dados fictícios.">
+  <title>Logística Lab · Painel de teste</title>
+  <link rel="stylesheet" href="/app/styles.css"><script type="module" src="/app/main.mjs"></script>
+</head>
+<body>
+<a class="skip" href="#content">Ir para o conteúdo</a>
+<div class="app-layout">
+  <aside class="sidebar">
+    <a class="brand" href="/">↗ <span>logística<small>LAB / NOME PROVISÓRIO</small></span></a>
+    <p class="nav-label">ESPAÇO DE TRABALHO</p>
+    <details id="module-menu" open><summary><span>Menu de módulos</span><strong id="current-module">Visão geral</strong></summary>
+    <nav aria-label="Módulos do protótipo">
+      <button type="button" data-view="dashboard" aria-current="page"><span aria-hidden="true">◫</span> Visão geral</button>
+      <p class="nav-group">Operação</p>
+      <button type="button" data-view="dispatch"><span aria-hidden="true">↗</span> Alocação e motoristas</button>
+      <button type="button" data-view="team"><span aria-hidden="true">⇄</span> Equipe e coletas</button>
+      <button type="button" data-view="receiving"><span aria-hidden="true">↓</span> Recebimento</button>
+      <button type="button" data-view="cargo"><span aria-hidden="true">▧</span> Cargas</button>
+      <button type="button" data-view="issues"><span aria-hidden="true">!</span> Ocorrências</button>
+      <p class="nav-group">Relacionamento</p>
+      <button type="button" data-view="portal"><span aria-hidden="true">↗</span> Portal do cliente</button>
+      <button type="button" data-view="quotes"><span aria-hidden="true">$</span> Cotações</button>
+      <button type="button" data-view="chat"><span aria-hidden="true">⇄</span> Chat interno</button>
+      <button type="button" data-view="communication"><span aria-hidden="true">↗</span> Atendimento</button>
+      <p class="nav-group">Gestão</p>
+      <button type="button" data-view="administration"><span aria-hidden="true">▥</span> Administrativo</button>
+      <button type="button" data-view="billing"><span aria-hidden="true">$</span> Faturamento</button>
+      <button type="button" data-view="expenses"><span aria-hidden="true">−</span> Despesas</button>
+      <p class="nav-group">Plataforma</p>
+      <button type="button" data-view="saas"><span aria-hidden="true">◫</span> Modelo SaaS</button>
+      <button type="button" data-view="settings"><span aria-hidden="true">⚙</span> Projeto e integrações</button>
+    </nav>
+    </details>
+    <div class="sidebar-note"><strong>Ambiente demonstrativo</strong><p>Dados fictícios. Nenhuma operação ou mensagem real.</p><a href="/operacao/">↗ Base operacional local</a><p><a href="/">← Página de apresentação</a></p></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div><span class="eyebrow">TRANSPORTADORA EXEMPLO</span><strong>Painel operacional <span class="badge">Protótipo</span></strong></div><label>Unidade<select id="branch"><option value="all">Todas as unidades</option><option value="unidade-a">Unidade A</option><option value="unidade-b">Unidade B</option></select></label><span class="avatar" title="Perfil demonstrativo, sem autenticação">DE</span></header>
+    <div class="demo-banner"><strong>Somente teste.</strong> Use informações fictícias. Alterações ficam na memória desta página e são perdidas ao recarregar. Não há login, banco ou sincronização.</div>
+    <main id="content" tabindex="-1"></main>
+    <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
+    <footer>Logística Lab · Projeto independente do ERP DistriHub · Sem emissão ou autorização de transporte</footer>
+  </div>
+</div>
+<dialog id="detail" aria-labelledby="detail-title"><div id="detail-body"></div><div class="dialog-footer"><button type="button" id="close-detail" class="secondary">Fechar detalhes</button></div></dialog>
+</body></html>

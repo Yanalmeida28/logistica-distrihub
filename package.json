@@ -1,0 +1,16 @@
+{
+  "name": "logistica-distrihub-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "start:homologation": "node --env-file=.env.logistica-homologacao server.mjs",
+    "verify:homologation": "node --env-file=.env.logistica-homologacao tools/verify-homologation.mjs",
+    "test": "node --test tests/*.test.mjs tests/database/*.test.mjs",
+    "test:database": "node --test tests/database/*.test.mjs"
+  },
+  "engines": {"node": ">=22"},
+  "dependencies": {"@supabase/supabase-js": "2.119.0"},
+  "devDependencies": {"@electric-sql/pglite": "0.5.15", "supabase": "3.0.0"}
+}

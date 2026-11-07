@@ -1,0 +1,18 @@
+.env
+.env.*
+node_modules/
+.tmp/
+*.log
+supabase/.temp/
+supabase/.branches/
+
+# Credenciais e artefatos privados permanecem somente no computador.
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+*.backup
+dumps/
+backups/
+coverage/

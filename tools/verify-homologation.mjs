@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {createClient} from '@supabase/supabase-js';
+import {databaseConfig} from '../backend/config.mjs';
+const config=databaseConfig();
+assert(config.enabled&&config.mode==='homologation','Configure somente o projeto de homologacao autorizado.');
+const client=createClient(config.url,config.key,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:(url,options)=>fetch(url,{...options,signal:AbortSignal.timeout(15000)})}});
+const settings=await fetch(config.url+'/auth/v1/settings',{headers:{apikey:config.key},signal:AbortSignal.timeout(15000)});
+assert.equal(settings.status,200,'Auth nao respondeu com sucesso.');
+const {error}=await client.from('log_companies').select('id').limit(1);
+assert.equal(error?.code,'42501','Acesso anonimo deveria ser recusado por privilegios.');
+const {error:rpcError}=await client.rpc('log_create_company',{p_name:'Unreachable anonymous operation',p_branch:'Unreachable'});
+assert.equal(rpcError?.code,'42501','Bootstrap anonimo deveria ser recusado antes de executar.');
+console.log('PASS homologacao: Auth acessivel, Data API disponivel, leitura anonima bloqueada e bootstrap sem EXECUTE anonimo. Nenhuma conta ou dado criado.');

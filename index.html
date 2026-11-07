@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Projeto experimental de visibilidade de cargas e atendimento para transportadoras. Sem operação real.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Transportadoras Lab · Projeto de teste</title>
+  <link rel="stylesheet" href="styles.css"><script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#principal">Ir para o conteúdo</a>
+<header class="shell header">
+  <a class="brand" href="#principal"><span class="brand-mark" aria-hidden="true">↗</span><span>transportadoras<small>LAB / NOME PROVISÓRIO</small></span></a>
+  <nav aria-label="Navegação principal"><a href="#proposta">A proposta</a><a href="#demonstracao">Explorar o fluxo</a><a href="#validacao">Próximo passo</a><a href="/app/">Painel de teste</a></nav>
+  <span class="badge">Projeto de teste</span>
+</header>
+<main id="principal">
+<section class="shell hero">
+  <div><p class="eyebrow">VISIBILIDADE & ATENDIMENTO</p><h1>A carga chegou.<br>A informação<br><em>também precisa chegar.</em></h1><p class="intro">Uma proposta para acompanhar mercadorias desde o recebimento e ajudar o atendimento a responder com informação confirmada.</p><a class="button" href="#demonstracao">Explorar a demonstração <span aria-hidden="true">↗</span></a><p class="fine">Em validação. Sem integração com TMS, WhatsApp ou operação real.</p></div>
+  <div class="cargo-panel">
+    <div class="panel-top"><span>VISÃO DA CARGA</span><span>EXEMPLO FICTÍCIO</span></div>
+    <div class="cargo-title"><span aria-hidden="true">▧</span><div><small>CÓDIGO INTERNO</small><h2>LAB-001</h2></div><small>UNIDADE A → B</small></div>
+    <div class="route" aria-hidden="true"><span>A</span><i></i><b>▣</b><i></i><span>B</span></div>
+    <div class="current"><span class="dot"></span><div><small>ÚLTIMO EVENTO DO EXEMPLO</small><strong>Recebida na unidade</strong><p>Embarque ainda não confirmado.</p></div></div>
+    <div class="pending"><strong>! Documentação pendente</strong><p>A carga pode ser identificada antes do CT-e. O registro interno não autoriza o transporte.</p></div>
+    <div class="panel-foot">Origem, horário e responsável por evento <span>↗</span></div>
+  </div>
+</section>
+<div class="principles"><div class="shell"><span>Coleta ≠ embarque</span><span>Previsão ≠ compromisso</span><span>Informação ausente ≠ confirmação</span></div></div>
+<section class="shell section" id="proposta">
+  <p class="eyebrow">01 / A PROPOSTA</p><h2>Menos procura.<br>Mais contexto para responder.</h2><p class="section-intro">Entender onde a informação se perde entre o armazém, o comercial e o cliente é o ponto de partida.</p>
+  <div class="cards">
+    <article><span>01</span><h3>Receber e identificar</h3><p>Avaliar um registro simples na chegada, com código interno e documentos vinculados posteriormente.</p><small>Hipótese a validar com a operação</small></article>
+    <article><span>02</span><h3>Enxergar o que falta</h3><p>Reunir pendências, próxima ação e responsável, preservando a origem e as correções dos eventos.</p><small>Sem inventar uma movimentação</small></article>
+    <article><span>03</span><h3>Atender com confiança</h3><p>Consultar o último evento confirmado e encaminhar exceções à pessoa responsável.</p><small>Automação depende de dados confiáveis</small></article>
+  </div>
+</section>
+<section class="flow" id="demonstracao"><div class="shell section">
+  <p class="eyebrow">02 / DEMONSTRAÇÃO INTERATIVA</p><h2>Cada etapa tem<br>um significado próprio.</h2><p class="section-intro">Selecione uma etapa para explorar o fluxo proposto. Isso não registra eventos reais.</p>
+  <div class="flow-layout"><div class="steps" role="group" aria-label="Etapas do exemplo">
+    <button type="button" data-step="0" aria-pressed="false"><span>01</span>Coleta confirmada</button>
+    <button type="button" data-step="1" aria-pressed="true"><span>02</span>Recebimento na unidade</button>
+    <button type="button" data-step="2" aria-pressed="false"><span>03</span>Embarque confirmado</button>
+    <button type="button" data-step="3" aria-pressed="false"><span>04</span>Chegada à unidade de destino</button>
+    <button type="button" data-step="4" aria-pressed="false"><span>05</span>Saída para entrega</button>
+    <button type="button" data-step="5" aria-pressed="false"><span>06</span>Entrega confirmada</button>
+  </div><article class="event-detail" aria-live="polite" aria-atomic="true">
+    <span class="badge">SIMULAÇÃO / LAB-001</span><p class="event-number" id="event-number">02</p><h3 id="event-title">Recebimento na unidade</h3><p id="event-description">A mercadoria foi recebida. Falta confirmar documentação e embarque; recebimento não significa que a carga já está em viagem.</p>
+    <div class="event-rule"><small>PARA CONFIAR NESTA INFORMAÇÃO</small><p id="event-source">Registro da equipe da unidade, com horário, volumes e responsável.</p></div><p class="fine">O sistema operacional e as integrações ainda não foram implementados.</p>
+  </article></div>
+</div></section>
+<section class="shell section validation" id="validacao">
+  <div><p class="eyebrow">03 / PRIMEIRO, VALIDAR</p><h2>Uma operação real.<br>Um problema bem definido.</h2><p>Antes das integrações, precisamos esclarecer o fluxo e medir se a proposta reduz o trabalho da equipe.</p><a class="text-link" href="#proposta">Revisar a proposta ↗</a></div>
+  <div class="validation-list"><article><span>→</span><div><h3>Conhecer o TMS e a triagem</h3><p>Entender os dados disponíveis e evitar digitar a mesma informação em dois sistemas.</p></div></article><article><span>→</span><div><h3>Definir quem confirma cada evento</h3><p>Incluir pendências, exceções, cargas divididas e entregas parciais.</p></div></article><article><span>→</span><div><h3>Medir antes e depois</h3><p>Tempo de resposta, busca de informação, consultas repetidas e retrabalho.</p></div></article></div>
+</section>
+<aside class="shell disclosure"><strong>Uma demonstração, sem promessas prontas.</strong><p>Não há cadastro, contato comercial ou coleta de dados nesta página. WhatsApp, IA, cotação e consultas financeiras são possibilidades futuras, sujeitas à validação, integração e autorização de acesso.</p></aside>
+</main>
+<footer class="shell footer"><span>Transportadoras Lab · Nome em definição</span><span>Independente do DistriHub · Ambiente de teste</span><a href="#principal">Voltar ao topo ↑</a></footer>
+</body></html>
