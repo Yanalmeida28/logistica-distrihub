@@ -1,5 +1,11 @@
 # Base operacional local
 
+**Parte 5 — atualização de 7/11/2026:** documentos privados, portal autenticado e chat persistente preparados localmente. As migrations próprias e as políticas do Storage real ainda não foram instaladas no projeto hospedado. Ver [RELACIONAMENTO_OPERACIONAL.md](RELACIONAMENTO_OPERACIONAL.md). Não foi reutilizado nenhum recurso do DistriHub.
+
+**Coletas — atualização de 7/11/2026:** o fluxo persistente foi preparado em módulo próprio de `/operacao/`, separado da demonstração. A migration operacional não foi aplicada remotamente. Consulte [COLETAS_OPERACIONAIS.md](COLETAS_OPERACIONAIS.md); as limitações da etapa original abaixo permanecem válidas para `/app/`.
+
+**Equipe — atualização de 7/11/2026:** convites, aceite autenticado, edição de função/filiais e desativação foram preparados localmente. A nova migration ainda não foi instalada no projeto hospedado. Consulte [EQUIPE.md](EQUIPE.md); as pendências de equipe descritas na etapa original abaixo registram o estado anterior.
+
 **Atualização:** a criação do projeto independente foi autorizada e a fundação já foi instalada em `logistica-lab`. O modo de homologação foi habilitado exclusivamente para esse projeto; consulte [HOMOLOGACAO_SUPABASE.md](HOMOLOGACAO_SUPABASE.md). As instruções de stack local abaixo continuam sendo uma alternativa; os relatos de ausência de projeto externo descrevem a etapa anterior.
 
 ## Estado e escopo

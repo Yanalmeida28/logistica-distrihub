@@ -1,5 +1,11 @@
 # Homologação Supabase independente
 
+**Parte 5 — local, 7/11/2026:** portal, chat e documentos preparados nas migrations `20261107154433_logistics_portal_chat_documents.sql` e `20261107154438_logistics_private_storage.sql`. Não instaladas remotamente. A segunda exige o Supabase Storage real e não é executada no PGlite. Detalhes e testes pendentes em [RELACIONAMENTO_OPERACIONAL.md](RELACIONAMENTO_OPERACIONAL.md).
+
+**Fluxo operacional — 7/11/2026:** `20261107152635_logistics_collection_workflow.sql` prepara OS persistentes, atribuição manual, coleta, recebimento e acompanhamento de cargas. Testada somente em PostgreSQL descartável. Não aplicada neste projeto hospedado. Consulte [COLETAS_OPERACIONAIS.md](COLETAS_OPERACIONAIS.md).
+
+**Atualização local de 7/11/2026:** a migration `20261107152042_logistics_team_access.sql` e a interface de equipe foram preparadas e testadas em PostgreSQL descartável, mas **não foram aplicadas neste projeto hospedado**. A criação de contas verificadas e a validação Auth ponta a ponta continuam pendentes. Ver [EQUIPE.md](EQUIPE.md).
+
 ## Projeto autorizado
 
 - Nome: `logistica-lab`.

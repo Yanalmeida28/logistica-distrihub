@@ -6,6 +6,56 @@ import {databaseConfig} from '../backend/config.mjs';
 const config={enabled:true,url:'http://127.0.0.1:54321',key:'sb_publishable_test_only_not_real'};
 async function server(api,action){const s=http.createServer(async(req,res)=>{if(!await api(req,res)){res.writeHead(404);res.end();}});await new Promise(r=>s.listen(0,'127.0.0.1',r));try{await action('http://127.0.0.1:'+s.address().port);}finally{await new Promise(r=>s.close(r));}}
 const headers={Host:'127.0.0.1:4180',Origin:'http://127.0.0.1:4180','Content-Type':'application/json'};
+test('portal, documentos e chat exigem sessao; API nao aceita identidade forjada',async()=>{
+  const id='00000000-0000-4000-8000-000000000001';let called;
+  const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {error:{message:'PRIVATE SQL ERROR'}};}};
+  await server(createApi({config,clientFactory:()=>client}),async base=>{
+    for(const path of ['portal','chat','documents'])assert.equal((await localFetch(base+'/api/'+path,{method:'POST',headers,body:'{}'})).status,401);
+    const login=await localFetch(base+'/api/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.invalid',password:'fake'})});
+    const h={...headers,Cookie:login.headers.get('set-cookie').split(';')[0]};
+    const send=(path,body)=>localFetch(base+'/api/'+path,{method:'POST',headers:h,body:JSON.stringify(body)});
+    const denied=await send('chat',{company_id:id,action:'send',branch_id:id,recipient_id:id,request_id:id,body:'Mensagem',sender_id:'attacker',role:'owner'});
+    assert.equal(denied.status,403);assert(!(await denied.text()).includes('PRIVATE'));assert.deepEqual(called.args.p_payload,{branch_id:id,recipient_id:id,request_id:id,body:'Mensagem'});
+    await send('portal',{action:'incoming',company_id:id});assert.equal(called.args.p_company,null);
+    await send('portal',{company_id:id,action:'invite',order_id:id,email:'test@example.invalid',role:'owner',user_id:'attacker'});assert.deepEqual(called.args.p_payload,{order_id:id,email:'test@example.invalid'});
+    assert.equal((await send('documents',{company_id:id,action:'public_url',id})).status,400);
+  });
+});
+test('coletas exigem sessao, chave de repeticao e versao; payload nao permite forjar autor ou status',async()=>{
+  const id='00000000-0000-4000-8000-000000000001';let called;
+  const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {error:{message:'PRIVATE SQL DETAIL'}};}};
+  await server(createApi({config,clientFactory:()=>client}),async base=>{
+    assert.equal((await localFetch(base+'/api/collections',{method:'POST',headers,body:'{}'})).status,401);
+    const login=await localFetch(base+'/api/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.invalid',password:'fake'})});
+    const h={...headers,Cookie:login.headers.get('set-cookie').split(';')[0]};
+    const send=body=>localFetch(base+'/api/collections',{method:'POST',headers:h,body:JSON.stringify(body)});
+    const payload={company_id:id,action:'collect',id,request_id:id,expected_version:3,note:'Confirmado no teste',actor_id:'attacker',status:'delivered'};
+    const response=await send(payload);assert.equal(response.status,403);assert(!(await response.text()).includes('PRIVATE'));
+    assert.deepEqual(called,{name:'log_collections',args:{p_company:id,p_action:'collect',p_payload:{id,request_id:id,expected_version:3,note:'Confirmado no teste'}}});
+    assert.equal((await send({...payload,request_id:null})).status,400);
+    assert.equal((await send({...payload,expected_version:0})).status,400);
+    assert.equal((await send({...payload,action:'create',branch_id:id,customer_id:id,volumes:1.5,pickup_address:'Rua de teste',destination:'Outra rua'})).status,400);
+    assert.equal((await send({...payload,action:'advance',next_status:'unknown'})).status,400);
+    await send({company_id:id,action:'list',actor_id:'attacker'});assert.deepEqual(called.args.p_payload,{});
+  });
+});
+test('equipe exige sessao, filtra payload e preserva negacao do banco',async()=>{
+  const id='00000000-0000-4000-8000-000000000001';let called;
+  const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {error:{message:'PRIVATE DATABASE ERROR'}};}};
+  await server(createApi({config,clientFactory:()=>client}),async base=>{
+    assert.equal((await localFetch(base+'/api/team',{method:'POST',headers,body:'{}'})).status,401);
+    const login=await localFetch(base+'/api/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.invalid',password:'fake'})});
+    const h={...headers,Cookie:login.headers.get('set-cookie').split(';')[0]};
+    const send=body=>localFetch(base+'/api/team',{method:'POST',headers:h,body:JSON.stringify(body)});
+    assert.equal((await send({action:'invite',company_id:id,email:'other@example.invalid',role:'owner',branch_ids:[id]})).status,400);
+    assert.equal(called,undefined);
+    const denied=await send({action:'invite',company_id:id,email:'other@example.invalid',role:'driver',branch_ids:[id],created_by:'attacker',active:true});
+    assert.equal(denied.status,403);assert(!(await denied.text()).includes('PRIVATE'));
+    assert.deepEqual(called,{name:'log_team',args:{p_company:id,p_action:'invite',p_payload:{role:'driver',branch_ids:[id],email:'other@example.invalid'}}});
+    await send({action:'incoming',company_id:id});assert.equal(called.args.p_company,null);
+    assert.equal((await send({action:'update',company_id:id,id,role:'driver',branch_ids:[id],active:'false'})).status,400);
+  });
+});
 // Raw HTTP permits an explicit Host when the test server uses an ephemeral port.
 const localFetch=(url,options={})=>new Promise((resolve,reject)=>{const req=http.request(url,{method:options.method??'GET',headers:options.headers},res=>{const chunks=[];res.on('data',b=>chunks.push(b));res.on('end',()=>resolve(new Response(Buffer.concat(chunks),{status:res.statusCode,headers:res.headers})));});req.on('error',reject);req.end(options.body);});
 test('configuracao desligada por padrao e recusa URL externa/ERP/chave privilegiada',()=>{

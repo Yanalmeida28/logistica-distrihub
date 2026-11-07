@@ -1,8 +1,12 @@
+import {mountTeam} from './team.mjs';
+import {mountCollections} from './collections.mjs';
+import {mountRelations} from './relations.mjs';
+import {mountInternalChat} from './internal-chat.mjs';
 const root=document.getElementById('operation'),notice=document.getElementById('operation-notice');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let workspace=null,companyId='',configured=false,busy=false,mode='local';
 async function request(path,data){
-  const response=await fetch('/api/'+path,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(15000)});
+  const response=await fetch('/api/'+path,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(path==='documents'?60000:15000)});
   const result=await response.json();if(!response.ok){if(response.status===401)workspace=null;throw Error(result.error??'Serviço indisponível.');}return result;
 }
 const field=(name,label,attrs='')=>'<label>'+label+'<input name="'+name+'" required '+attrs+'></label>';
@@ -19,7 +23,17 @@ function render(){
   root.innerHTML=base+'<div class="tip horizontal"><strong>Ambiente de teste · acesso restrito</strong><p>Estes cadastros usam a API e as permissões reais do banco configurado. Coletas, vendas de frete, portal, chat, despesas e WhatsApp da demonstração ainda não usam esta base. Nenhum dado demonstrativo é importado.</p></div>'+
     '<div class="filters"><p>Conectado: '+esc(workspace.user.email)+'</p><button type="button" class="secondary" id="operation-refresh">Atualizar dados</button><button type="button" class="secondary" id="operation-logout">Sair</button></div>'+
     (companies.length?'<label>Transportadora<select id="operation-company">'+companies.map(c=>'<option value="'+esc(c.id)+'" '+(c.id===companyId?'selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></label><p>Papel neste vínculo: <strong>'+esc(membership?.role??'sem vínculo ativo')+'</strong>. Permissões são revalidadas no banco.</p>':'<section class="card"><h2>Criar sua transportadora</h2><p>Somente identidade com e-mail confirmado. Uma empresa própria por usuário; funcionário não recebe acesso automático a outras empresas.</p><form id="operation-company-create"><div class="form-grid">'+field('name','Nome da transportadora','maxlength="120" minlength="2"')+field('branch','Primeira filial','maxlength="120" minlength="2"')+'</div><button class="primary">Criar empresa e filial</button></form></section>')+
-    (companyId?'<section class="card">'+list('branches','Filiais')+(owner?'<form data-record="branches"><div class="form-grid">'+field('name','Nova filial','minlength="2" maxlength="120"')+'</div><button class="secondary">Cadastrar filial</button></form>':'')+'</section><section class="card">'+list('customers','Clientes')+(admin?'<form data-record="customers"><div class="form-grid">'+field('name','Nome do cliente','minlength="2" maxlength="120"')+branchSelect(true)+'</div><button class="secondary">Cadastrar cliente</button></form>':'')+'</section><section class="card">'+list('vehicles','Veículos')+(admin&&activeBranches.length?'<form data-record="vehicles"><div class="form-grid">'+field('identifier','Identificador do veículo','minlength="2" maxlength="40"')+branchSelect()+field('capacity_volumes','Capacidade em volumes','type="number" min="1" max="100000" step="1"')+'</div><button class="secondary">Cadastrar veículo</button></form>':'')+'</section><p class="fine">Listagem inicial limitada a '+workspace.limit+' registros por cadastro. Convites, edição/desativação pela interface, cobranças e operações logísticas persistentes serão implementados nas próximas etapas.</p>':'');
+    (companyId?'<section class="card">'+list('branches','Filiais')+(owner?'<form data-record="branches"><div class="form-grid">'+field('name','Nova filial','minlength="2" maxlength="120"')+'</div><button class="secondary">Cadastrar filial</button></form>':'')+'</section><section class="card">'+list('customers','Clientes')+(admin?'<form data-record="customers"><div class="form-grid">'+field('name','Nome do cliente','minlength="2" maxlength="120"')+branchSelect(true)+'</div><button class="secondary">Cadastrar cliente</button></form>':'')+'</section><section class="card">'+list('vehicles','Veículos')+(admin&&activeBranches.length?'<form data-record="vehicles"><div class="form-grid">'+field('identifier','Identificador do veículo','minlength="2" maxlength="40"')+branchSelect()+field('capacity_volumes','Capacidade em volumes','type="number" min="1" max="100000" step="1"')+'</div><button class="secondary">Cadastrar veículo</button></form>':'')+'</section><p class="fine">Listagem inicial limitada a '+workspace.limit+' registros por cadastro. Equipe, coletas, portal, documentos e chat foram preparados em módulos próprios abaixo; exigem suas migrations e homologação. Cobranças e edição dos demais cadastros permanecem pendentes.</p>':'');
+  const teamRoot=document.createElement('div');root.append(teamRoot);
+  void mountTeam(teamRoot,{request,companyId,owner,branchList:branches,reload,run});
+  if(['owner','administrative','driver','collector'].includes(membership?.role)){
+    const collectionsRoot=document.createElement('div');root.append(collectionsRoot);
+    void mountCollections(collectionsRoot,{request,companyId,membership,branchList:branches,customers:workspace.customers,vehicles:workspace.vehicles,reload,run});
+  }
+  const relationsRoot=document.createElement('div');root.append(relationsRoot);
+  void mountRelations(relationsRoot,{request,companyId,membership,run,reload});
+  const chatRoot=document.createElement('div');root.append(chatRoot);
+  mountInternalChat(chatRoot,{request,companyId,membership,branchList:branches,run});
 }
 async function reload(){workspace=await request('workspace');render();}
 async function run(action){if(busy)return;busy=true;notice.textContent='';root.querySelectorAll('button').forEach(b=>b.disabled=true);try{await action();}catch(e){notice.textContent=e.name==='TimeoutError'?'Serviço sem resposta. Confira o ambiente local.':e.message;if(!workspace)render();}finally{busy=false;root.querySelectorAll('button').forEach(b=>b.disabled=false);}}

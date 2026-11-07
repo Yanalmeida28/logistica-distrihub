@@ -1,15 +1,16 @@
 import {randomBytes} from 'node:crypto';
 import {createClient} from '@supabase/supabase-js';
 import {databaseConfig} from './config.mjs';
+import {handleCollaboration} from './collaboration.mjs';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const cookieName='logistics_session';
 const fields={branches:'id,company_id,name,active',customers:'id,company_id,branch_id,name,active',vehicles:'id,company_id,branch_id,identifier,capacity_volumes,active'};
 const tables={branches:'log_branches',customers:'log_customers',vehicles:'log_vehicles'};
 function json(res,status,data,headers={}){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers});res.end(JSON.stringify(data));}
 function text(value,min,max){if(typeof value!=='string'||value.trim().length<min||value.trim().length>max)throw Error('validation');return value.trim();}
-async function body(req){
+async function body(req,maxLength=16384){
   if(!req.headers['content-type']?.startsWith('application/json'))throw Error('validation');
-  let length=0;const chunks=[];for await(const chunk of req){length+=chunk.length;if(length>16384)throw Error('validation');chunks.push(chunk);}
+  let length=0;const chunks=[];for await(const chunk of req){length+=chunk.length;if(length>maxLength)throw Error('validation');chunks.push(chunk);}
   const data=JSON.parse(Buffer.concat(chunks).toString('utf8'));if(!data||typeof data!=='object'||Array.isArray(data))throw Error('validation');return data;
 }
 const cookie=(id='',seconds=0)=>cookieName+'='+id+'; HttpOnly; SameSite=Strict; Path=/api; Max-Age='+seconds;
@@ -63,6 +64,43 @@ export function createApi({config=databaseConfig(),clientFactory=createClient,cl
         ]);
         if(results.some(r=>r.error)){json(res,503,{error:'Estrutura indisponível. Confirme a instalação local da migration.'});return true;}
         json(res,200,{user:{id:userData.user.id,email:userData.user.email},companies:results[0].data,memberships:results[1].data,branches:results[2].data,customers:results[3].data,vehicles:results[4].data,limit:500});return true;
+      }
+      if(await handleCollaboration(req,res,{path,client:session.client,body,json,text,UUID}))return true;
+      if(path==='/api/collections'&&req.method==='POST'){
+        const input=await body(req);
+        if(!UUID.test(input.company_id)||!['list','create','assign','release','accept','start','collect','receive','advance'].includes(input.action))throw Error('validation');
+        const payload={};
+        if(input.action!=='list'){
+          if(!UUID.test(input.request_id))throw Error('validation');payload.request_id=input.request_id;payload.note=text(input.note,3,500);
+          if(input.action==='create'){
+            if(!UUID.test(input.branch_id)||!UUID.test(input.customer_id)||!Number.isInteger(input.volumes)||input.volumes<1||input.volumes>100000)throw Error('validation');
+            Object.assign(payload,{branch_id:input.branch_id,customer_id:input.customer_id,pickup_address:text(input.pickup_address,3,300),destination:text(input.destination,3,300),volumes:input.volumes});
+          }else{
+            if(!UUID.test(input.id)||!Number.isInteger(input.expected_version)||input.expected_version<1)throw Error('validation');
+            payload.id=input.id;payload.expected_version=input.expected_version;
+            if(input.action==='assign'){if(!UUID.test(input.assignee_id)||!UUID.test(input.vehicle_id))throw Error('validation');payload.assignee_id=input.assignee_id;payload.vehicle_id=input.vehicle_id;}
+            if(input.action==='advance'){if(!['shipped','destination','out_for_delivery','delivered'].includes(input.next_status))throw Error('validation');payload.next_status=input.next_status;}
+          }
+        }
+        const {data,error}=await session.client.rpc('log_collections',{p_company:input.company_id,p_action:input.action,p_payload:payload});
+        if(error){json(res,403,{error:'Operação recusada. Atualize os dados e confira etapa, empresa, filial e permissões.'});return true;}
+        json(res,200,{result:data});return true;
+      }
+      if(path==='/api/team'&&req.method==='POST'){
+        const input=await body(req);
+        if(!['incoming','list','invite','accept','revoke','update'].includes(input.action))throw Error('validation');
+        if(input.action!=='incoming'&&!UUID.test(input.company_id))throw Error('validation');
+        const payload={};
+        if(['accept','revoke','update'].includes(input.action)){if(!UUID.test(input.id))throw Error('validation');payload.id=input.id;}
+        if(['invite','update'].includes(input.action)){
+          if(!['administrative','collector','driver'].includes(input.role)||!Array.isArray(input.branch_ids)||(input.branch_ids.length<1&&!(input.action==='update'&&input.active===false))||input.branch_ids.length>100||input.branch_ids.some(id=>!UUID.test(id)))throw Error('validation');
+          payload.role=input.role;payload.branch_ids=[...new Set(input.branch_ids)];
+          if(input.action==='invite')payload.email=text(input.email,3,254);
+          else {if(typeof input.active!=='boolean')throw Error('validation');payload.active=input.active;}
+        }
+        const {data,error}=await session.client.rpc('log_team',{p_company:input.action==='incoming'?null:input.company_id,p_action:input.action,p_payload:payload});
+        if(error){json(res,403,{error:'Operação de equipe recusada. Confira convite, filiais e permissão de proprietário.'});return true;}
+        json(res,200,{result:data});return true;
       }
       if(path==='/api/company'&&req.method==='POST'){
         const input=await body(req),{data,error}=await session.client.rpc('log_create_company',{p_name:text(input.name,2,120),p_branch:text(input.branch,2,120)});
