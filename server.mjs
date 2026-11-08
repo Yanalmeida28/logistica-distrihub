@@ -1,7 +1,9 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import {createApi} from './backend/api.mjs';
-const api=createApi();
+import {hostingSettings} from './backend/hosting.mjs';
+const hosting=hostingSettings();
+const api=createApi({publicOrigin:hosting.publicOrigin});
 const files = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
@@ -51,5 +53,5 @@ const server = http.createServer(async (request, response) => {
 });
 server.requestTimeout=15000;
 server.headersTimeout=10000;
-server.listen(4180, '127.0.0.1', () => console.log('Preview local: http://127.0.0.1:4180'));
+server.listen(hosting.port, hosting.host, () => console.log(hosting.publicOrigin?'Logistica: servidor iniciado.':`Preview local: http://127.0.0.1:${hosting.port}`));
 server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? 'Porta 4180 ocupada.' : 'Preview indisponivel.'); process.exitCode=1; });

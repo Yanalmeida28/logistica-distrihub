@@ -1,5 +1,6 @@
 import {randomBytes} from 'node:crypto';
 import {createClient} from '@supabase/supabase-js';
+import {logisticsOrigin} from './hosting.mjs';
 import {databaseConfig} from './config.mjs';
 import {handleCollaboration} from './collaboration.mjs';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -13,17 +14,18 @@ async function body(req,maxLength=16384){
   let length=0;const chunks=[];for await(const chunk of req){length+=chunk.length;if(length>maxLength)throw Error('validation');chunks.push(chunk);}
   const data=JSON.parse(Buffer.concat(chunks).toString('utf8'));if(!data||typeof data!=='object'||Array.isArray(data))throw Error('validation');return data;
 }
-const cookie=(id='',seconds=0)=>cookieName+'='+id+'; HttpOnly; SameSite=Strict; Path=/api; Max-Age='+seconds;
-export function createApi({config=databaseConfig(),clientFactory=createClient,clock=Date.now}={}){
+export function createApi({config=databaseConfig(),clientFactory=createClient,clock=Date.now,publicOrigin=null}={}){
+  if(publicOrigin&&publicOrigin!==logisticsOrigin)throw Error('Dominio de hospedagem nao autorizado.');
+  const cookie=(id='',seconds=0)=>cookieName+'='+id+'; HttpOnly; SameSite=Strict; Path=/api; Max-Age='+seconds+(publicOrigin?'; Secure':'');
   const sessions=new Map(),attempts=new Map();
   const makeClient=()=>clientFactory(config.url,config.key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:(url,options)=>fetch(url,{...options,signal:AbortSignal.timeout(10000)})}});
   return async function api(req,res){
     const path=new URL(req.url,'http://127.0.0.1').pathname;
     if(!path.startsWith('/api/'))return false;
     const host=req.headers.host;
-    if(!['127.0.0.1:4180','localhost:4180'].includes(host)){json(res,421,{error:'Host inválido.'});return true;}
+    if(!(publicOrigin?host===new URL(publicOrigin).host:['127.0.0.1:4180','localhost:4180'].includes(host))){json(res,421,{error:'Host inválido.'});return true;}
     if(!['GET','POST'].includes(req.method)){json(res,405,{error:'Método não permitido.'},{Allow:'GET, POST'});return true;}
-    if(req.method==='POST'&&req.headers.origin!=='http://'+host){json(res,403,{error:'Origem não autorizada.'});return true;}
+    if(req.method==='POST'&&req.headers.origin!==(publicOrigin??'http://'+host)){json(res,403,{error:'Origem não autorizada.'});return true;}
     if(path==='/api/status'&&req.method==='GET'){json(res,200,{configured:config.enabled,mode:config.enabled?(config.mode??'local'):'disabled',reason:config.enabled?null:config.reason});return true;}
     if(!config.enabled){json(res,503,{error:'Supabase local não configurado. A operação permanece bloqueada.'});return true;}
     for(const [id,s] of sessions)if(s.expires<=clock())sessions.delete(id);
