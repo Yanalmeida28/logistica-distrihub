@@ -11,7 +11,7 @@ async function request(path,data){
 }
 const field=(name,label,attrs='')=>'<label>'+label+'<input name="'+name+'" required '+attrs+'></label>';
 function render(){
-  const base='<p class="eyebrow">LOGÍSTICA LAB / PREPARAÇÃO OPERACIONAL</p><h1>Uma base separada para sua transportadora.</h1>';
+  const base='<p class="eyebrow">DISTRIHUB LOGÍSTICA / OPERAÇÃO</p><h1>Uma base separada para sua transportadora.</h1>';
   if(!configured){root.innerHTML=base+'<section class="card"><span class="badge">Operação bloqueada</span><h2>Supabase local ainda não configurado</h2><p>Nenhum banco externo é acessado. Esta área exige o projeto local próprio, a migration de fundação e usuários do Auth. Não usa os dados da demonstração nem recursos do DistriHub.</p><p>Consulte docs/BASE_OPERACIONAL.md para preparar o ambiente. Não informe senhas ou chaves no chat.</p><a class="secondary" href="/app/">Continuar na demonstração</a></section>';return;}
   if(!workspace){root.innerHTML=base+'<section class="card login-card"><h2>Entrar no ambiente de teste</h2><p>Use sua conta do ambiente de teste. Não há usuário padrão, seleção de papel ou acesso demonstrativo nesta área.</p><form id="operation-login">'+field('email','E-mail','type="email" maxlength="254" autocomplete="username"')+field('password','Senha','type="password" maxlength="1024" autocomplete="current-password"')+'<button class="primary">Entrar</button></form><p class="fine">A sessão fica em cookie HttpOnly e no servidor local; os tokens não são entregues ao JavaScript. Reiniciar o servidor encerra as sessões desta área.</p></section>';return;}
   const companies=workspace.companies.filter(c=>c.active);
