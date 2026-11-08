@@ -16,6 +16,7 @@ const files = new Map([
   ['/vendor/jspdf.umd.min.js', ['node_modules/jspdf/dist/jspdf.umd.min.js', 'text/javascript; charset=utf-8']],
   ['/operation/view-tools.mjs', ['operation/view-tools.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/order-pdf.mjs', ['operation/order-pdf.mjs', 'text/javascript; charset=utf-8']],
+  ['/operation/overview.mjs', ['operation/overview.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/navigation.mjs', ['operation/navigation.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/main.mjs', ['operation/main.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/team.mjs', ['operation/team.mjs', 'text/javascript; charset=utf-8']],

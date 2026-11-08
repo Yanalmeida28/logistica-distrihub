@@ -1,3 +1,4 @@
+import {mountOverview} from './overview.mjs';
 import {mountListTools,createNotifier} from './view-tools.mjs';
 import {operationTabs,selectOperationPanel} from './navigation.mjs';
 import {mountTeam} from './team.mjs';
@@ -10,7 +11,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 let workspace=null,companyId='',configured=false,busy=false,mode='local',activeTab='overview';
 async function request(path,data){
   const response=await fetch('/api/'+path,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(path==='documents'?60000:15000)});
-  const result=await response.json();if(!response.ok){if(response.status===401)workspace=null;throw Error(result.error??'Serviço indisponível.');}return result;
+  const result=await response.json();if(!response.ok){if(response.status===401)workspace=null;const error=Error(result.error??'Serviço indisponível.');error.status=response.status;throw error;}return result;
 }
 const field=(name,label,attrs='')=>'<label>'+label+'<input name="'+name+'" required '+attrs+'></label>';
 function render(){
@@ -64,6 +65,8 @@ function render(){
     const counts=['branches','customers','vehicles'].map(kind=>workspace[kind].filter(row=>row.company_id===companyId&&row.active).length);
     const max=Math.max(1,...counts);
     metrics.innerHTML=counts.map((count,i)=>'<article><span>'+['Filiais ativas','Clientes ativos','Veículos ativos'][i]+'</span><strong>'+count+'</strong><meter min="0" max="'+max+'" value="'+count+'" aria-label="'+['Filiais','Clientes','Veículos'][i]+'">'+count+'</meter><small>Nos registros carregados</small></article>').join('');overview.append(metrics);
+    const summary=document.createElement('div');overview.insertBefore(summary,metrics);
+    void mountOverview(summary,{request,companyId,membership,branchList:branches,onNavigate:id=>sidebar.querySelector('[data-operation-tab="'+id+'"]')?.click()});
   }
   selectOperationPanel(layout,activeTab);
   sidebar.addEventListener('click',event=>{
