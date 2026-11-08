@@ -6,7 +6,7 @@ async function download(companyId,id,filename){
  const blob=await response.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 const fileBase64=file=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=()=>reject(Error('Arquivo não pôde ser lido.'));r.readAsDataURL(file);});
-export async function mountRelations(root,{request,companyId,membership,run,reload}){
+export async function mountRelations(root,{request,companyId,membership,run,reload,notify=()=>{}}){
  const admin=['owner','administrative'].includes(membership?.role),client=membership?.role==='client';
  let orderId='',downloads=new Map(),uploadKey=crypto.randomUUID();
  root.innerHTML='<section class="card"><h2>Portal e documentos</h2><p>Carregando…</p></section>';
@@ -41,10 +41,10 @@ export async function mountRelations(root,{request,companyId,membership,run,relo
    const file=f.elements.file.files[0];if(!file||file.size>5*1024*1024||file.size===0)throw Error('Arquivo vazio ou maior que 5 MB.');
    await request('documents',{company_id:companyId,action:'upload',order_id:orderId,request_id:uploadKey,filename:file.name,mime:file.type,base64:await fileBase64(file)});uploadKey=crypto.randomUUID();
   }
-  await detail();
+  notify('Alteração confirmada.');await detail();
  });});
  root.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!['clientAccept','documentDownload','inviteRevoke','clientRevoke','documentRevoke','documentShare'].some(k=>b.dataset[k]))return;run(async()=>{
-  if(b.dataset.clientAccept){await request('portal',{action:'accept',company_id:b.dataset.company,id:b.dataset.clientAccept});await reload();return;}
+  if(b.dataset.clientAccept){await request('portal',{action:'accept',company_id:b.dataset.company,id:b.dataset.clientAccept});notify('Acesso aceito.');await reload();return;}
   if(b.dataset.documentDownload){await download(companyId,b.dataset.documentDownload,downloads.get(b.dataset.documentDownload)??'documento');return;}
   if(b.dataset.inviteRevoke)await request('portal',{company_id:companyId,order_id:orderId,action:'revoke_invite',id:b.dataset.inviteRevoke});
   else if(b.dataset.clientRevoke)await request('portal',{company_id:companyId,order_id:orderId,action:'revoke',membership_id:b.dataset.clientRevoke});

@@ -1,5 +1,5 @@
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function mountInternalChat(root,{request,companyId,membership,branchList,run}){
+export function mountInternalChat(root,{request,companyId,membership,branchList,run,notify=()=>{}}){
  if(!companyId||!['owner','administrative','driver','collector'].includes(membership?.role))return;
  let branch='',recipient='',key=crypto.randomUUID(),loading=false;
  root.innerHTML='<section class="card"><h2>Chat interno</h2><p>Central ↔ motoristas e coletores da mesma filial. Até 100 mensagens recentes por conversa. Sem anexos ou confirmação de leitura.</p><label>Filial<select data-chat-branch><option value="">Selecione</option>'+branchList.filter(b=>b.active).map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>').join('')+'</select></label><label>Conversar com<select data-chat-peer><option value="">Selecione a filial</option></select></label><div data-chat-history role="log" aria-live="polite"></div><form data-chat-form><label>Mensagem<textarea name="body" required maxlength="2000" rows="3"></textarea></label><button>Enviar mensagem interna</button></form><button type="button" data-chat-refresh>Atualizar conversa</button><p data-chat-status role="status"></p></section>';
@@ -18,8 +18,8 @@ export function mountInternalChat(root,{request,companyId,membership,branchList,
  root.addEventListener('submit',e=>{if(!e.target.matches('[data-chat-form]'))return;e.preventDefault();e.stopPropagation();const form=e.target;run(async()=>{
   if(!branch||!recipient)throw Error('Selecione a filial e o contato.');
   await request('chat',{company_id:companyId,action:'send',branch_id:branch,recipient_id:recipient,request_id:key,body:new FormData(form).get('body')});
-  key=crypto.randomUUID();form.reset();await history();
+  key=crypto.randomUUID();form.reset();notify('Mensagem enviada.');await history();
  });});
  root.addEventListener('click',e=>{if(e.target.closest('[data-chat-refresh]'))run(history);});
- if(globalThis.document){const poll=async()=>{if(!root.isConnected)return;if(!document.hidden)await history();setTimeout(poll,10000);};setTimeout(poll,10000);}
+ if(globalThis.document){const poll=async()=>{if(!root.isConnected)return;if(!document.hidden&&!root.hidden)await history();setTimeout(poll,10000);};setTimeout(poll,10000);}
 }
