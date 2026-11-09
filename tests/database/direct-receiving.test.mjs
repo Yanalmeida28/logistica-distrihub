@@ -52,6 +52,26 @@ test('direct receiving, legacy migration, cargo sheet and resource isolation in 
    assert.equal((await q('select id from public.log_collection_orders')).length,1);
    await assert.rejects(rpc('log_cargos_workspace',company,'create_direct',{...request,volumes:5}));
   });
+  await t.test('server search includes older than 100, literal NF/CTe, customer and stable pages',async()=>{
+   await as(1);
+   for(let n=0;n<105;n++)await rpc('log_cargos_workspace',company,'create_direct',command({branch_id:branch,customer_id:customer,destination:'Recent synthetic '+n,volumes:1}));
+   await rpc('log_cargos_workspace',company,'references',command({id:direct.id,expected_version:1,nf_reference:'OLD-NF-%',cte_reference:'OLD-CTE'}));
+   const search=payload=>rpc('log_freight_read',company,'search',payload);
+   for(const term of ['OLD-NF-%','OLD-CTE',direct.id])assert.equal((await search({term})).rows[0].id,direct.id);
+   assert.equal((await search({term:'Shared customer'})).total,107);
+   const first=await search({page:1}),second=await search({page:2});assert.equal(first.rows.length,20);assert(!second.rows.some(c=>first.rows.some(x=>x.id===c.id)));
+   assert.deepEqual(await search({page:1}),first);
+   for(const payload of [{page:0},{page_size:51},{status:'invented'},{term:'a'.repeat(121)}])await assert.rejects(search(payload));
+   const detail=await rpc('log_freight_read',company,'detail',{id:legacy.cargo_id});
+   assert(detail.events.some(e=>e.source==='collection'&&e.action==='collect'));assert.equal(detail.events.filter(e=>e.action==='receive').length,1);
+   assert(detail.events.every(e=>e.actor_id&&e.at));
+   for(const n of [2,3,5]){await as(n);await assert.rejects(rpc('log_freight_read',company,'detail',{id:direct.id}));}
+   await as(5);assert.equal((await search({term:direct.id})).total,0);
+   await as(null,'anon');await assert.rejects(search({}));
+   await as(1);await rpc('log_cargos_workspace',company,'references',command({id:direct.id,expected_version:2,nf_reference:null,cte_reference:null}));
+   // Restore the version solely in the fixture so the existing independent journey retains its original expectations.
+   await db.exec('reset role');await q('update public.log_cargos set version=1 where id=$1',[direct.id]);await as(1);
+  });
   await t.test('tenant, branch, customer, role and anonymous access are enforced',async()=>{
    for(const n of [2,3,5]){await as(n);await assert.rejects(rpc('log_cargos_workspace',company,'detail',{id:direct.id}));await assert.rejects(rpc('log_cargos_workspace',company,'create_direct',command({...request,request_id:randomUUID()})));}
    await as(null,'anon');await assert.rejects(rpc('log_cargos_workspace',company,'list'));

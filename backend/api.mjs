@@ -137,6 +137,20 @@ export function createApi({config=databaseConfig(),clientFactory=createClient,cl
         if(error){json(res,403,{error:'Empresa não criada. Exige identidade verificada e permite uma empresa própria por usuário.'});return true;}
         json(res,201,{id:data});return true;
       }
+      if(path==='/api/freight'&&req.method==='POST'){
+        const input=await body(req),payload={};
+        if(!UUID.test(input.company_id)||!['search','detail'].includes(input.action))throw Error('validation');
+        if(input.action==='detail'){if(!UUID.test(input.id))throw Error('validation');payload.id=input.id;}
+        else {
+          payload.term=input.term==null?'':text(input.term,0,120);
+          for(const [key,max,initial] of [['page',1000000,1],['page_size',50,20]]){const v=input[key]??initial;if(!Number.isInteger(v)||v<1||v>max)throw Error('validation');payload[key]=v;}
+          if(input.branch_id){if(!UUID.test(input.branch_id))throw Error('validation');payload.branch_id=input.branch_id;}
+          if(input.status){if(!['received','shipped','destination','out_for_delivery','delivered'].includes(input.status))throw Error('validation');payload.status=input.status;}
+        }
+        const {data,error}=await session.client.rpc('log_freight_read',{p_company:input.company_id,p_action:input.action,p_payload:payload});
+        if(error){json(res,403,{error:'Busca indisponível. Confira permissões e instalação da migration de busca.'});return true;}
+        json(res,200,{result:data});return true;
+      }
       if(path==='/api/cargos'&&req.method==='POST'){
         const input=await body(req);
         if(!UUID.test(input.company_id)||!['list','detail','create_direct','references','advance'].includes(input.action))throw Error('validation');
