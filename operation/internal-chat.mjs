@@ -21,5 +21,5 @@ export function mountInternalChat(root,{request,companyId,membership,branchList,
   key=crypto.randomUUID();form.reset();notify('Mensagem enviada.');await history();
  });});
  root.addEventListener('click',e=>{if(e.target.closest('[data-chat-refresh]'))run(history);});
- if(globalThis.document){const poll=async()=>{if(!root.isConnected)return;if(!document.hidden&&!root.hidden)await history();setTimeout(poll,10000);};setTimeout(poll,10000);}
+ if(globalThis.document){const poll=async()=>{if(!root.isConnected)return;if(!document.hidden&&!root.hidden&&!root.closest('[data-operation-panel]')?.hidden)await history();setTimeout(poll,10000);};setTimeout(poll,10000);}
 }

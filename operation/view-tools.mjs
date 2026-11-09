@@ -39,7 +39,7 @@ export function reconcileCollectionView(root,markup){
   const focused=root.contains(root.ownerDocument.activeElement)?root.ownerDocument.activeElement:null;
   const template=root.ownerDocument.createElement('template');template.innerHTML=markup;
   const oldTools=root.querySelector('[data-collection-tools]'),newTools=template.content.querySelector('[data-collection-tools]');
-  if(oldTools&&newTools)newTools.replaceWith(oldTools);
+  if(oldTools&&newTools){oldTools.hidden=newTools.hidden;newTools.replaceWith(oldTools);}
   const forms=Array.from(root.querySelectorAll('form[data-collection]'));
   for(const fresh of template.content.querySelectorAll('form[data-collection]')){
     const old=forms.find(form=>form.dataset.collection===fresh.dataset.collection&&form.dataset.order===fresh.dataset.order&&form.dataset.version===fresh.dataset.version);

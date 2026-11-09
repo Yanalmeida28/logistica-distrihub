@@ -39,3 +39,13 @@ test('network failure preserves the prior summary with a visible stale warning',
   r.events.click({target:{closest:selector=>selector==='[data-overview-refresh]'}});await new Promise(setImmediate);
   assert.equal(r.elements['[data-overview-body]'].innerHTML,before);assert(r.elements['[data-overview-status]'].textContent.includes('desatualizado'));
 });
+
+test('Hoje links open the exact assignment or receiving record without inferring a business action',async()=>{
+  const r=root(),navigations=[];
+  await mountOverview(r,{companyId:'a',membership:{role:'owner'},branchList:[],request:async()=>({result:{orders:[order('assign-me','pending'),order('receive-me','collected')],cargos:[]}}),onNavigate:(...args)=>navigations.push(args)});
+  const html=r.elements['[data-overview-body]'].innerHTML;
+  assert(html.includes('data-overview-order="assign-me" data-overview-task="collections"'));
+  assert(html.includes('data-overview-order="receive-me" data-overview-task="receiving"'));
+  for(const [id,task] of [['assign-me','collections'],['receive-me','receiving']])r.events.click({target:{closest:selector=>selector==='[data-overview-order]'?{dataset:{overviewOrder:id,overviewTask:task}}:null}});
+  assert.deepEqual(navigations,[['collections',{orderId:'assign-me'}],['receiving',{orderId:'receive-me'}]]);
+});

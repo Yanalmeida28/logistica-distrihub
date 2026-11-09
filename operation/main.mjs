@@ -1,9 +1,10 @@
+import {mountAdministrativeArea} from './admin-area.mjs';
 import {mountCustomers} from './customers.mjs';
 import {managementMarkup,mountManagementNavigation} from './management.mjs';
 import {loginScreen,onboardingScreen} from './access.mjs';
 import {mountOverview} from './overview.mjs';
 import {mountListTools,createNotifier} from './view-tools.mjs';
-import {operationTabs,selectOperationPanel} from './navigation.mjs';
+import {operationTabs,operationPanelId,collectionTasks,selectOperationPanel} from './navigation.mjs';
 import {mountTeam} from './team.mjs';
 import {mountCollections} from './collections.mjs';
 import {mountRelations} from './relations.mjs';
@@ -11,7 +12,7 @@ import {mountInternalChat} from './internal-chat.mjs';
 const root=document.getElementById('operation'),notice=document.getElementById('operation-notice');
 const notify=createNotifier(notice),listStates=new Map();let workspaceSnapshot='',workspaceDirty=false;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let workspace=null,companyId='',configured=false,busy=false,mode='local',activeTab='overview';
+let workspace=null,companyId='',configured=false,busy=false,mode='local',activeTab='',adminView='home';
 async function request(path,data){
   const response=await fetch('/api/'+path,{method:data?'POST':'GET',credentials:'same-origin',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(path==='documents'?60000:15000)});
   const result=await response.json();if(!response.ok){if(response.status===401)workspace=null;const error=Error(result.error??'Serviço indisponível.');error.status=response.status;error.code=result.code;throw error;}return result;
@@ -43,16 +44,17 @@ function render(){
   root.insertAdjacentHTML('beforeend',managementMarkup({workspace,companyId,membership,mode}));
   const teamRoot=document.createElement('div');teamRoot.dataset.operationPanel='team';root.append(teamRoot);
   void mountTeam(teamRoot,{request,companyId,owner,branchList:branches,reload,run,notify});
+  let collectionsReady=Promise.resolve(null);
   if(['owner','administrative','driver','collector'].includes(membership?.role)){
     const collectionsRoot=document.createElement('div');collectionsRoot.dataset.operationPanel='collections';root.append(collectionsRoot);
-    void mountCollections(collectionsRoot,{request,companyId,membership,branchList:branches,customers:workspace.customers,vehicles:workspace.vehicles,reload,run,notify,companyName:companies.find(c=>c.id===companyId)?.name});
+    collectionsReady=mountCollections(collectionsRoot,{request,companyId,membership,branchList:branches,customers:workspace.customers,vehicles:workspace.vehicles,reload,run,notify,companyName:companies.find(c=>c.id===companyId)?.name});
   }
   const relationsRoot=document.createElement('div');relationsRoot.dataset.operationPanel='relations';root.append(relationsRoot);
   void mountRelations(relationsRoot,{request,companyId,membership,run,reload,notify});
   const chatRoot=document.createElement('div');chatRoot.dataset.operationPanel='chat';root.append(chatRoot);
   mountInternalChat(chatRoot,{request,companyId,membership,branchList:branches,run,notify});
   const tabs=operationTabs(membership?.role,Boolean(companyId));
-  if(!tabs.some(([id])=>id===activeTab))activeTab='overview';
+  if(!tabs.some(([id])=>id===activeTab))activeTab=tabs[0][0];
   const layout=document.createElement('div');layout.className='operation-layout';
   const overview=document.createElement('div');overview.dataset.operationPanel='overview';
   const panels=document.createElement('div');panels.className='operation-panels';
@@ -62,34 +64,49 @@ function render(){
     else if(node.dataset.operationPanel)panels.append(node);else overview.append(node);
   }
   panels.prepend(overview);
+  if(!['owner','administrative','driver','collector','client'].includes(membership?.role))overview.insertAdjacentHTML('beforeend','<section class="card"><h2>Sem acesso operacional</h2><p>Nenhum perfil ativo autorizado nesta transportadora. Consulte seus convites ou solicite a revis\u00e3o do acesso.</p></section>');
   panels.querySelectorAll('[data-operation-panel]').forEach(panel=>{
     panel.id='operation-panel-'+panel.dataset.operationPanel;panel.tabIndex=-1;
-    panel.hidden=!tabs.some(([id])=>id===panel.dataset.operationPanel);
+    panel.hidden=!tabs.some(([id])=>operationPanelId(id)===panel.dataset.operationPanel);
   });
   const sidebar=document.createElement('aside');sidebar.className='operation-sidebar';
-  sidebar.innerHTML='<details open><summary>Menu de módulos</summary><nav aria-label="Módulos da operação">'+tabs.map(([id,label])=>'<button type="button" data-operation-tab="'+id+'" aria-controls="operation-panel-'+id+'">'+label+'</button>').join('')+'</nav></details>';
+  sidebar.innerHTML='<details open><summary>Menu de módulos</summary><nav aria-label="Módulos da operação">'+tabs.map(([id,label])=>'<button type="button" data-operation-tab="'+id+'" aria-controls="operation-panel-'+operationPanelId(id)+'">'+label+'</button>').join('')+'</nav></details>';
   layout.append(sidebar,panels);root.append(...controls,layout);
   for(const kind of ['branches','vehicles']){
     const container=panels.querySelector('[data-operation-panel="'+kind+'"]');
     if(container){const key=companyId+':'+kind;if(!listStates.has(key))listStates.set(key,{term:'',page:1});mountListTools(container,{state:listStates.get(key),label:kind==='branches'?'filiais':kind==='customers'?'clientes':'veículos'});}
   }
-  if(companyId){
+  if(companyId&&admin){
     const metrics=document.createElement('section');metrics.className='metrics';metrics.setAttribute('aria-label','Indicadores dos cadastros carregados');
     const counts=['branches','customers','vehicles'].map(kind=>workspace[kind].filter(row=>row.company_id===companyId&&row.active).length);
     const max=Math.max(1,...counts);
     metrics.innerHTML=counts.map((count,i)=>'<article><span>'+['Filiais ativas','Clientes ativos','Veículos ativos'][i]+'</span><strong>'+count+'</strong><meter min="0" max="'+max+'" value="'+count+'" aria-label="'+['Filiais','Clientes','Veículos'][i]+'">'+count+'</meter><small>Nos registros carregados</small></article>').join('');overview.append(metrics);
     const summary=document.createElement('div');overview.insertBefore(summary,metrics);
-    void mountOverview(summary,{request,companyId,membership,branchList:branches,onNavigate:id=>sidebar.querySelector('[data-operation-tab="'+id+'"]')?.click()});
+    void mountOverview(summary,{request,companyId,membership,branchList:branches,onNavigate:(id,options)=>navigateTo(id,options)});
   }
-  mountManagementNavigation(panels,id=>sidebar.querySelector('[data-operation-tab="'+id+'"]')?.click());
-  selectOperationPanel(layout,activeTab);
-  sidebar.addEventListener('click',event=>{
-    const button=event.target.closest('[data-operation-tab]');
-    if(!button||busy)return;
-    if(selectOperationPanel(layout,button.dataset.operationTab)){
-      activeTab=button.dataset.operationTab;
-      panels.querySelector('[data-operation-panel="'+activeTab+'"]').focus({preventScroll:true});
+  const administrativeArea=mountAdministrativeArea(panels,{role:membership?.role,selected:adminView,onSelect:id=>{adminView=id;},canNavigate:()=>!busy});
+  const navigateTo=async(id,options={})=>{
+    if(busy||!layout.isConnected)return;
+    const managementIds=['home','customers','branches','vehicles','team','settings'];
+    if(administrativeArea&&managementIds.includes(id)){
+      if(administrativeArea.select(id)){activeTab='administrative';selectOperationPanel(layout,activeTab);}return;
     }
+    if(id==='summary')id='overview';
+    if(!tabs.some(([key])=>key===id))return;
+    if(collectionTasks.includes(id)){
+      const controller=await collectionsReady;
+      if(!layout.isConnected||busy||!controller)return;
+      if(!await controller.setTask(id,options))return;
+    }
+    if(selectOperationPanel(layout,id)){
+      activeTab=id;panels.querySelector('[data-operation-panel="'+operationPanelId(id)+'"]').focus({preventScroll:true});
+    }
+  };
+  mountManagementNavigation(panels,navigateTo);
+  selectOperationPanel(layout,activeTab);
+  if(collectionTasks.includes(activeTab))void collectionsReady.then(controller=>controller?.setTask(activeTab));
+  sidebar.addEventListener('click',event=>{
+    const button=event.target.closest('[data-operation-tab]');if(button)void navigateTo(button.dataset.operationTab);
   });
 }
 async function reload(force=true){const next=await request('workspace');const signature=JSON.stringify(next);workspace=next;if(!force&&signature===workspaceSnapshot)return;workspaceSnapshot=signature;workspaceDirty=false;render();}
@@ -99,8 +116,8 @@ root.addEventListener('submit',e=>{e.preventDefault();const form=e.target,values
   else if(form.id==='operation-company-create'){await request('company',values);await reload();notify('Configura\u00e7\u00e3o conclu\u00edda. Continue pelos cadastros da sua transportadora.');}
   else if(form.dataset.record){await request('records',{...values,kind:form.dataset.record,company_id:companyId});await reload();notify('Cadastro salvo.');}
 });});
-root.addEventListener('change',e=>{if(e.target.id==='operation-company'){if(workspaceDirty||root.querySelector('[data-has-draft="true"]')){e.target.value=companyId;notify('Salve ou cancele o cadastro antes de trocar de empresa.',{error:true});return;}companyId=e.target.value;activeTab='overview';render();}});
-root.addEventListener('click',e=>{if(e.target.id==='operation-refresh'){if(workspaceDirty||root.querySelector('[data-has-draft="true"]'))notify('Salve o cadastro em edição antes de atualizar.',{error:true});else run(async()=>{await reload(false);notify('Dados atualizados.');});}if(e.target.id==='operation-logout')run(async()=>{try{await request('logout',{});}finally{workspace=null;companyId='';workspaceSnapshot='';workspaceDirty=false;listStates.clear();activeTab='overview';render();}});});
+root.addEventListener('change',e=>{if(e.target.id==='operation-company'){if(workspaceDirty||root.querySelector('[data-has-draft="true"]')){e.target.value=companyId;notify('Salve ou cancele o cadastro antes de trocar de empresa.',{error:true});return;}companyId=e.target.value;adminView='home';activeTab='';render();}});
+root.addEventListener('click',e=>{if(e.target.id==='operation-refresh'){if(workspaceDirty||root.querySelector('[data-has-draft="true"]'))notify('Salve o cadastro em edição antes de atualizar.',{error:true});else run(async()=>{await reload(false);notify('Dados atualizados.');});}if(e.target.id==='operation-logout')run(async()=>{try{await request('logout',{});}finally{workspace=null;companyId='';workspaceSnapshot='';workspaceDirty=false;listStates.clear();adminView='home';activeTab='overview';render();}});});
 try{const status=await request('status');configured=status.configured;mode=status.mode;if(configured){try{await reload();}catch(e){if(!workspace)render();if(e.status!==401)notify(e.message,{error:true});}}else render();}catch{render();notice.textContent='Não foi possível consultar a configuração local.';}
 
 root.addEventListener('input',event=>{if(event.target.closest('form[data-record]'))workspaceDirty=true;});
