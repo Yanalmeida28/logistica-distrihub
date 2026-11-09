@@ -1,0 +1,18 @@
+{
+  "id": "/operacao/",
+  "name": "DistriHub Logística",
+  "short_name": "DH Logística",
+  "description": "Gestão de coletas e acompanhamento de cargas.",
+  "lang": "pt-BR",
+  "start_url": "/operacao/?source=pwa",
+  "scope": "/operacao/",
+  "display": "standalone",
+  "background_color": "#f4f8ff",
+  "theme_color": "#153b91",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

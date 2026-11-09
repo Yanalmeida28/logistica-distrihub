@@ -1,3 +1,4 @@
+import {customerRecord,customerFields} from './customer-record.mjs';
 import {randomBytes} from 'node:crypto';
 import {createClient} from '@supabase/supabase-js';
 import {logisticsOrigin} from './hosting.mjs';
@@ -108,6 +109,26 @@ export function createApi({config=databaseConfig(),clientFactory=createClient,cl
         const input=await body(req),{data,error}=await session.client.rpc('log_create_company',{p_name:text(input.name,2,120),p_branch:text(input.branch,2,120)});
         if(error){json(res,403,{error:'Empresa não criada. Exige identidade verificada e permite uma empresa própria por usuário.'});return true;}
         json(res,201,{id:data});return true;
+      }
+      if(path==='/api/customers'&&req.method==='POST'){
+        const input=await body(req);
+        if(!UUID.test(input.company_id)||!['list','create','update'].includes(input.action))throw Error('validation');
+        let query=session.client.from('log_customers');
+        if(input.action==='list')query=query.select(customerFields).eq('company_id',input.company_id).order('name').limit(500);
+        else {
+          const record=customerRecord(input);
+          if(input.action==='create'){
+            if(input.branch_id!=null&&input.branch_id!==''&&!UUID.test(input.branch_id))throw Error('validation');
+            query=query.insert({...record,company_id:input.company_id,branch_id:input.branch_id||null});
+          }else{
+            if(!UUID.test(input.id)||typeof input.active!=='boolean')throw Error('validation');
+            query=query.update({...record,active:input.active}).eq('company_id',input.company_id).eq('id',input.id);
+          }
+          query=query.select(customerFields).single();
+        }
+        const {data,error}=await query;
+        if(error){const missingSchema=['42703','PGRST204'].includes(error.code);json(res,missingSchema?503:403,{error:'Cadastro de clientes indisponivel ou recusado. Confira campos, permissao e migration de clientes.',...(missingSchema?{code:'customer_schema_pending'}:{})});return true;}
+        json(res,input.action==='create'?201:200,input.action==='list'?{records:data,limit:500}:{record:data});return true;
       }
       if(path==='/api/records'&&req.method==='POST'){
         const input=await body(req),kind=input.kind;

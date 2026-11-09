@@ -17,6 +17,7 @@ test('fundacao em PostgreSQL descartavel: contratos, RLS, ACL, integridade e rol
       create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
       grant usage on schema auth to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;`);
     await db.exec(migration);
+    await db.exec(await fs.readFile(new URL('../../supabase/migrations/20261109045522_logistics_customer_profile.sql',import.meta.url),'utf8'));
     await db.exec(await fs.readFile(new URL('../../supabase/migrations/20261106192642_logistics_fk_indexes.sql',import.meta.url),'utf8'));
     await db.query("insert into auth.users(id,email_confirmed_at) select ('00000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,now() from generate_series(1,9) n");
     await db.query('insert into auth.users(id) values($1)',[uid(10)]);
@@ -69,6 +70,23 @@ test('fundacao em PostgreSQL descartavel: contratos, RLS, ACL, integridade e rol
       await as(6);const rows=await q('select id from public.log_customers');assert.equal(rows.length,1);assert.equal(rows[0].id,customer);
       assert.equal((await q('select * from public.log_vehicles')).length,0);assert.equal((await q('select * from public.log_audit')).length,0);
       await assert.rejects(q('insert into public.log_customer_contacts(company_id,customer_id,membership_id) select company_id,$1,id from public.log_memberships',[shared]));
+    });
+    await t.test('extended customer fields persist with audit, RLS, column limits and immutable branch',async()=>{
+      await as(1);
+      await q("update public.log_customers set person_type='PJ',document='12345678000199',email='synthetic@example.invalid',street='Synthetic street',state='SP',notes='Synthetic note' where id=$1",[customer]);
+      const [row]=await q('select person_type,document,email,street,state from public.log_customers where id=$1',[customer]);
+      assert.equal(row.person_type,'PJ');assert.equal(row.document,'12345678000199');assert.equal(row.state,'SP');
+      await assert.rejects(q("update public.log_customers set person_type='ADMIN' where id=$1",[customer]));
+      await assert.rejects(q("update public.log_customers set notes=repeat('x',1001) where id=$1",[customer]));
+      await as(3);assert.equal((await q("update public.log_customers set phone='11999999999',active=false where id=$1 returning id",[customer])).length,1);
+      assert.equal((await q("update public.log_customers set email='forbidden@example.invalid' where id=$1 returning id",[shared])).length,0);
+      await as(7);assert.equal((await q("update public.log_customers set phone='blocked' where id=$1 returning id",[customer])).length,0);
+      await as(2);assert.equal((await q('select document,email from public.log_customers where id=$1',[customer])).length,0);
+      assert.equal((await q("update public.log_customers set phone='blocked' where id=$1 returning id",[customer])).length,0);
+      await as(1);await assert.rejects(q('update public.log_customers set branch_id=$1 where id=$2',[branchA2,customer]));
+      await q('begin');await q("update public.log_customers set person_type='PF',phone='rolled back' where id=$1",[customer]);await q('rollback');
+      assert.equal((await q('select person_type from public.log_customers where id=$1',[customer]))[0].person_type,'PJ');
+      await q('update public.log_customers set active=true where id=$1',[customer]);
     });
     await t.test('revogacao de membro passa a valer sem alterar JWT',async()=>{
       await root();await q('update public.log_memberships set active=false where user_id=$1',[uid(3)]);

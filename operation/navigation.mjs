@@ -1,11 +1,13 @@
 const internalRoles=['owner','administrative','driver','collector'];
 export function operationTabs(role,hasCompany){
   const tabs=[['overview','Visão geral']];
-  if(hasCompany)tabs.push(['branches','Filiais'],['customers','Clientes'],['vehicles','Veículos']);
+  if(hasCompany&&['owner','administrative'].includes(role))tabs.push(['administrative','Administrativo'],['customers','Clientes']);
+  if(hasCompany&&internalRoles.includes(role))tabs.push(['branches','Filiais'],['vehicles','Veículos']);
   tabs.push(['team','Equipe e convites']);
   if(hasCompany&&internalRoles.includes(role))tabs.push(['collections','Coletas e cargas']);
   if(hasCompany)tabs.push(['relations','Portal e documentos']);
   if(hasCompany&&internalRoles.includes(role))tabs.push(['chat','Chat interno']);
+  if(hasCompany)tabs.push(['settings','Configurações']);
   return tabs;
 }
 

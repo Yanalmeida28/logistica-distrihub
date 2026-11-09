@@ -4,6 +4,21 @@ import http from 'node:http';
 import {createApi} from '../backend/api.mjs';
 import {databaseConfig} from '../backend/config.mjs';
 const config={enabled:true,url:'http://127.0.0.1:54321',key:'sb_publishable_test_only_not_real'};
+test('customer endpoint requires session and scopes updates to company/id without moving branch or elevating role',async()=>{
+  const id='00000000-0000-4000-8000-000000000001',company='00000000-0000-4000-8000-000000000002';let changes,filters;
+  const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},from:()=>{
+    const query={update(value){changes=value;filters=[];return this;},eq(key,value){filters.push([key,value]);return this;},select(){return this;},single:async()=>({error:{message:'PRIVATE DATABASE ERROR'}})};return query;
+  }};
+  await server(createApi({config,clientFactory:()=>client}),async base=>{
+    assert.equal((await localFetch(base+'/api/customers',{method:'POST',headers,body:'{}'})).status,401);
+    const login=await localFetch(base+'/api/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.invalid',password:'fake'})});
+    const authorized={...headers,Cookie:login.headers.get('set-cookie').split(';')[0]};
+    const response=await localFetch(base+'/api/customers',{method:'POST',headers:authorized,body:JSON.stringify({action:'update',id,company_id:company,name:'Cliente sintético',active:false,person_type:'PF',branch_id:id,created_by:id,role:'owner',email:'synthetic@example.invalid'})});
+    assert.equal(response.status,403);assert(!(await response.text()).includes('PRIVATE'));
+    assert.deepEqual(filters,[['company_id',company],['id',id]]);assert.equal(changes.active,false);assert.equal(changes.person_type,'PF');
+    for(const field of ['branch_id','company_id','role','created_by'])assert(!(field in changes));
+  });
+});
 async function server(api,action){const s=http.createServer(async(req,res)=>{if(!await api(req,res)){res.writeHead(404);res.end();}});await new Promise(r=>s.listen(0,'127.0.0.1',r));try{await action('http://127.0.0.1:'+s.address().port);}finally{await new Promise(r=>s.close(r));}}
 const headers={Host:'127.0.0.1:4180',Origin:'http://127.0.0.1:4180','Content-Type':'application/json'};
 test('portal, documentos e chat exigem sessao; API nao aceita identidade forjada',async()=>{

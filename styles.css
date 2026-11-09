@@ -17,3 +17,10 @@ h1 em{color:#3b7a79}.badge{background:#edf5f1;color:#386453;border-color:#cbded4
 /* Vivid accents with readable text and explicit focus states. */
 :root{--ink:#102a56;--muted:#405575;--paper:#f6f9ff;--line:#c5d6f0;--accent:#b9f3e8}
 h1 em{color:#1d4ed8}.brand-mark{background:#1d4ed8;color:#fff}.brand small{color:#405575}.button{background:#1d4ed8;color:#fff;box-shadow:0 5px 16px #1d4ed82b}.button:hover{background:#1e40af}.button span{color:#fff}.text-link,nav a:hover{color:#1d4ed8}.eyebrow{color:#1d4ed8}.eyebrow:before,.dot{background:#047857}.panel-top{background:#dbeafe;color:#173e83}.cargo-panel,.event-detail{border-color:#93b4e8}.current{background:#d1fae5;color:#065f46;border-left:4px solid #047857}.current small,.cargo-title small{color:#405575}.current p{color:#065f46}.route b{background:#99f6e4;color:#115e59}.principles{background:#153b91}.principles .shell{color:#fff}.flow{background:#e5efff;border-color:#b9cef3}.steps button{color:#334c70}.steps button[aria-pressed=true]{background:#1d4ed8;border-color:#1d4ed8;color:#fff}.steps button:hover:not([aria-pressed=true]){background:#d5e4fc}.event-number{color:#1d4ed8}.badge{background:#d1fae5;color:#065f46;border-color:#72c9a2}.cards article{border-top:3px solid #1d4ed8}.cards article>span,.cards small,.validation-list article>span{color:#1d4ed8}.event-rule p{color:#334c70}.roadmap{background:#e0f2fe;border-color:#93c5fd}.disclosure{background:#e9f1ff;border-color:#adc6f0}a:focus-visible,button:focus-visible{outline:3px solid #1d4ed8;outline-offset:4px}
+
+/* Clearer landing-page outlines and supporting copy. */
+:root{--muted:#334866;--line:#647b9d}
+.cargo-panel,.event-detail,.flow,.disclosure,.roadmap{border-color:#647b9d}
+.brand small,.cargo-title small,.current small,.panel-top{color:#243c60;font-weight:600}
+.header nav a,.text-link,.button,.badge{font-weight:700}
+.cards small,.validation-list article>span{font-size:12px}

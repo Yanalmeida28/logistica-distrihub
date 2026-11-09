@@ -1,14 +1,23 @@
 <!doctype html>
 <html lang="pt-BR"><head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="robots" content="noindex,nofollow">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+    <meta name="theme-color" content="#153b91">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="DH Logística">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="/pwa/icon-192.png">
+<meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>DistriHub Logística · Acessar sistema</title>
   <link rel="stylesheet" href="/app/styles.css"><link rel="stylesheet" href="/operation/styles.css">
+  <script type="module" src="/pwa/install.mjs"></script>
   <script src="/vendor/jspdf.umd.min.js" defer></script>
   <script type="module" src="/operation/main.mjs"></script>
 </head><body><a class="skip" href="#operation">Ir ao conteúdo</a>
-<header class="operation-header"><a class="brand" href="/">↗ DistriHub Logística <small>OPERAÇÃO</small></a><a href="/app/">Abrir demonstração</a></header>
+<header class="operation-header"><a class="brand" href="/">↗ DistriHub Logística <small>OPERAÇÃO</small></a><div class="operation-header-actions"><button type="button" id="instalar" data-pwa-install>Instalar app</button><a href="/app/">Abrir demonstração</a></div></header>
 <main id="operation" tabindex="-1"><p role="status">Verificando configuração local…</p></main>
 <p id="operation-notice" hidden role="status" aria-live="polite"></p>
+<dialog class="pwa-install-help" data-pwa-help aria-labelledby="pwa-help-title"><h2 id="pwa-help-title">Instalar DistriHub Logística</h2><p data-pwa-instructions></p><p>O aplicativo precisa de internet para consultar e confirmar as operações.</p><button type="button" class="primary" data-pwa-close>Entendi</button></dialog>
 </body></html>

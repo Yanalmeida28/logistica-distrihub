@@ -5,6 +5,12 @@ import {hostingSettings} from './backend/hosting.mjs';
 const hosting=hostingSettings();
 const api=createApi({publicOrigin:hosting.publicOrigin});
 const files = new Map([
+  ['/manifest.webmanifest', ['pwa/manifest.webmanifest', 'application/manifest+json; charset=utf-8']],
+  ['/pwa/icon-192.png', ['pwa/icon-192.png', 'image/png']],
+  ['/pwa/icon-512.png', ['pwa/icon-512.png', 'image/png']],
+  ['/pwa/apple-touch-icon.png', ['pwa/apple-touch-icon.png', 'image/png']],
+  ['/pwa/install.mjs', ['pwa/install.mjs', 'text/javascript; charset=utf-8']],
+  ['/operacao/sw.js', ['pwa/sw.js', 'text/javascript; charset=utf-8']],
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
@@ -16,6 +22,9 @@ const files = new Map([
   ['/vendor/jspdf.umd.min.js', ['node_modules/jspdf/dist/jspdf.umd.min.js', 'text/javascript; charset=utf-8']],
   ['/operation/view-tools.mjs', ['operation/view-tools.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/order-pdf.mjs', ['operation/order-pdf.mjs', 'text/javascript; charset=utf-8']],
+  ['/operation/customers.mjs', ['operation/customers.mjs', 'text/javascript; charset=utf-8']],
+  ['/operation/management.mjs', ['operation/management.mjs', 'text/javascript; charset=utf-8']],
+  ['/operation/access.mjs', ['operation/access.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/overview.mjs', ['operation/overview.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/navigation.mjs', ['operation/navigation.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/main.mjs', ['operation/main.mjs', 'text/javascript; charset=utf-8']],
