@@ -23,6 +23,7 @@ const files = new Map([
   ['/operation/view-tools.mjs', ['operation/view-tools.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/order-pdf.mjs', ['operation/order-pdf.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/customers.mjs', ['operation/customers.mjs', 'text/javascript; charset=utf-8']],
+  ['/operation/pickup-addresses.mjs', ['operation/pickup-addresses.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/admin-area.mjs', ['operation/admin-area.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/management.mjs', ['operation/management.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/access.mjs', ['operation/access.mjs', 'text/javascript; charset=utf-8']],

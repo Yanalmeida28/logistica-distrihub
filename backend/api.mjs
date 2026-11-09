@@ -77,7 +77,9 @@ export function createApi({config=databaseConfig(),clientFactory=createClient,cl
           if(!UUID.test(input.request_id))throw Error('validation');payload.request_id=input.request_id;payload.note=text(input.note,3,500);
           if(input.action==='create'){
             if(!UUID.test(input.branch_id)||!UUID.test(input.customer_id)||!Number.isInteger(input.volumes)||input.volumes<1||input.volumes>100000)throw Error('validation');
-            Object.assign(payload,{branch_id:input.branch_id,customer_id:input.customer_id,pickup_address:text(input.pickup_address,3,300),destination:text(input.destination,3,300),volumes:input.volumes});
+            Object.assign(payload,{branch_id:input.branch_id,customer_id:input.customer_id,destination:text(input.destination,3,300),volumes:input.volumes});
+            if(input.pickup_address_id){if(!UUID.test(input.pickup_address_id))throw Error('validation');payload.pickup_address_id=input.pickup_address_id;}
+            else payload.pickup_address=text(input.pickup_address,3,300);
           }else{
             if(!UUID.test(input.id)||!Number.isInteger(input.expected_version)||input.expected_version<1)throw Error('validation');
             payload.id=input.id;payload.expected_version=input.expected_version;
@@ -85,9 +87,34 @@ export function createApi({config=databaseConfig(),clientFactory=createClient,cl
             if(input.action==='advance'){if(!['shipped','destination','out_for_delivery','delivered'].includes(input.next_status))throw Error('validation');payload.next_status=input.next_status;}
           }
         }
-        const {data,error}=await session.client.rpc('log_collections',{p_company:input.company_id,p_action:input.action,p_payload:payload});
+        const savedAddress=input.action==='create'&&payload.pickup_address_id;
+        const {data,error}=await session.client.rpc(savedAddress?'log_collection_from_address':'log_collections',{p_company:input.company_id,...(savedAddress?{}:{p_action:input.action}),p_payload:payload});
         if(error){json(res,403,{error:'Operação recusada. Atualize os dados e confira etapa, empresa, filial e permissões.'});return true;}
         json(res,200,{result:data});return true;
+      }
+      if(path==='/api/pickup-addresses'&&req.method==='POST'){
+        const input=await body(req);
+        if(!UUID.test(input.company_id)||!['list','create','update'].includes(input.action))throw Error('validation');
+        const columns='id,company_id,branch_id,customer_id,label,address,active,created_at';
+        let query=session.client.from('log_customer_pickup_addresses');
+        if(input.action==='list'){
+          query=query.select(columns).eq('company_id',input.company_id);
+          if(input.customer_id){if(!UUID.test(input.customer_id))throw Error('validation');query=query.eq('customer_id',input.customer_id);}
+          query=query.order('label').limit(500);
+        }else{
+          const record={label:text(input.label,2,80),address:text(input.address,3,300)};
+          if(input.action==='create'){
+            if(!UUID.test(input.customer_id)||!UUID.test(input.branch_id))throw Error('validation');
+            query=query.insert({...record,company_id:input.company_id,customer_id:input.customer_id,branch_id:input.branch_id});
+          }else{
+            if(!UUID.test(input.id)||typeof input.active!=='boolean')throw Error('validation');
+            query=query.update({...record,active:input.active}).eq('company_id',input.company_id).eq('id',input.id);
+          }
+          query=query.select(columns).single();
+        }
+        const {data,error}=await query;
+        if(error){const pending=['42P01','PGRST205'].includes(error.code);json(res,pending?503:403,{error:'Endereços indisponíveis ou operação recusada. Confira filial, cliente e permissões.',...(pending?{code:'pickup_address_schema_pending'}:{})});return true;}
+        json(res,input.action==='create'?201:200,input.action==='list'?{records:data,limit:500}:{record:data});return true;
       }
       if(path==='/api/team'&&req.method==='POST'){
         const input=await body(req);

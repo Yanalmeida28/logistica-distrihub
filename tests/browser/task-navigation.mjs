@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 const repo=new URL('../../',import.meta.url),delay=ms=>new Promise(r=>setTimeout(r,ms));
 const uid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),company=uid(1),branch=uid(2),member=uid(3);
 let role='owner',empty=false,denied=false,calls=[],receipts=[],receiptIndex=50;
+let pickupRows=[];
 const allOrders=['pending','assigned','collected','received'].map((status,i)=>({id:uid(10+i),company_id:company,branch_id:branch,customer_id:uid(5),assignee_id:member,status,version:1,volumes:2,pickup_address:'Rua sintética '+i,destination:'Destino de teste'}));
 const files=new Map([['/operacao/','operation/index.html'],['/manifest.webmanifest','pwa/manifest.webmanifest'],['/operacao/sw.js','pwa/sw.js'],['/vendor/jspdf.umd.min.js','node_modules/jspdf/dist/jspdf.umd.min.js']]);
 for(const directory of ['operation','app','pwa'])for(const name of fs.readdirSync(new URL(directory+'/',repo)))if(/\.(mjs|css|png)$/.test(name))files.set('/'+directory+'/'+name,directory+'/'+name);
@@ -17,7 +18,13 @@ const server=http.createServer(async(req,res)=>{
     const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
     if(pathname==='/api/status')return json(200,{configured:true,mode:'homologation'});
     if(pathname==='/api/workspace')return json(200,{user:{email:'synthetic@example.invalid'},companies:[{id:company,name:'Transportadora sintética',active:true}],memberships:role==='none'?[]:[{id:member,company_id:company,role,active:true}],branches:[{id:branch,company_id:company,name:'Matriz',active:true}],customers:[{id:uid(5),company_id:company,branch_id:null,name:'Cliente sintético',active:true}],vehicles:[],limit:500});
-    if(pathname==='/api/customers')return json(503,{code:'customer_schema_pending',error:'Synthetic schema pending'});
+    if(pathname==='/api/customers')return json(200,{records:[{id:uid(5),company_id:company,branch_id:null,name:'Cliente sintético',active:true}]});
+    if(pathname==='/api/pickup-addresses'){
+      if(input.action==='create'){const record={id:uid(62),company_id:company,branch_id:input.branch_id,customer_id:input.customer_id,label:input.label,address:input.address,active:true};pickupRows.push(record);return json(201,{record});}
+      if(input.action==='update'){const record=pickupRows.find(row=>row.id===input.id);Object.assign(record,{label:input.label,address:input.address,active:input.active});return json(200,{record});}
+      return json(200,{records:pickupRows});
+    }
+    if(pathname==='/api/collections'&&input.action==='create')return json(200,{result:{id:uid(70)}});
     if(pathname==='/api/cargos'){
       if(input.action==='create_direct'){const c={id:uid(receiptIndex++),company_id:company,branch_id:input.branch_id,customer_id:input.customer_id,destination:input.destination,volumes:input.volumes,origin:'direct',order_id:null,status:'received',version:1,nf_reference:null,cte_reference:null};receipts.push(c);return json(200,{result:{id:c.id}});}
       if(input.action==='list')return denied?json(403,{error:'Synthetic denied'}):json(200,{result:receipts});
@@ -55,6 +62,7 @@ try{
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===390});
     for(const currentRole of ['owner','administrative','manager','driver','collector','client','none']){
       role=currentRole;empty=false;denied=false;calls=[];receipts=[{id:uid(90),company_id:company,branch_id:branch,customer_id:uid(5),destination:'Synthetic collected cargo',volumes:2,origin:'collection',order_id:uid(13),status:'received',version:1,nf_reference:null,cte_reference:null}];
+      pickupRows=[{id:uid(60),company_id:company,branch_id:branch,customer_id:uid(5),label:'Loja',address:'Rua sintética 100',active:true},{id:uid(61),company_id:company,branch_id:branch,customer_id:uid(5),label:'Depósito',address:'Galpão sintético 200',active:true}];
       await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/operacao/?role='+role});
       const first=role==='client'?'relations':['driver','collector'].includes(role)?'collections':'overview';
       await waitFor('document.querySelector("[data-operation-tab][aria-current=page]")?.dataset.operationTab==='+JSON.stringify(first));
@@ -76,6 +84,25 @@ try{
         assert.equal(await evaluate('document.querySelectorAll("[data-order-card]").length'),1);
         await tab('administrative');await evaluate('document.querySelector("[data-admin-go=customers]").click()');
         assert.equal(await evaluate('document.querySelector("[data-admin-view=customers]").hidden'),false);
+        await waitFor('document.querySelector("[data-customer-pickups]")');
+        await evaluate('document.querySelector("[data-customer-pickups]").click()');await waitFor('document.querySelector("[data-pickup-new]")');
+        await evaluate('document.querySelector("[data-pickup-new]").click()');
+        await evaluate('(()=>{const f=document.querySelector("[data-pickup-form]");f.elements.label.value="Galpão novo";f.elements.address.value="Rua sintética 300";f.requestSubmit();})()');
+        await waitFor('document.querySelector("[data-pickup-manager]")?.textContent.includes("Galpão novo")&&!document.querySelector("[data-pickup-form]")');
+        assert.equal(pickupRows.length,3);
+        await evaluate('document.querySelector('+JSON.stringify('[data-pickup-edit="'+uid(60)+'"]')+').click()');
+        await evaluate('(()=>{const f=document.querySelector("[data-pickup-form]");f.elements.active.value="false";f.requestSubmit();})()');
+        await waitFor('document.querySelector("[data-pickup-close]")&&!document.querySelector("[data-pickup-form]")');assert.equal(pickupRows[0].active,false);
+        await evaluate('document.querySelector("[data-pickup-close]").click()');
+        await tab('collections');await evaluate('document.querySelector("[data-refresh-collections]").click()');
+        await waitFor('(()=>{const s=document.querySelector("[name=pickup_address_id]");return s&&Array.from(s.options).some(o=>o.value==='+JSON.stringify(uid(62))+')&&!Array.from(s.options).some(o=>o.value==='+JSON.stringify(uid(60))+');})()');
+        assert.equal(await evaluate('Array.from(document.querySelector("[name=pickup_address_id]").options).some(o=>o.value==='+JSON.stringify(uid(60))+')'),false);
+        await evaluate('(()=>{const f=document.querySelector("[data-collection=create]");f.elements.pickup_address_id.value='+JSON.stringify(uid(61))+';f.elements.pickup_address_id.dispatchEvent(new Event("change",{bubbles:true}));})()');
+        assert.equal(await evaluate('document.querySelector("[name=pickup_address]").value'),'Galpão sintético 200');
+        assert.equal(await evaluate('document.querySelector("[name=pickup_address]").readOnly'),true);
+        await evaluate('(()=>{const f=document.querySelector("[data-collection=create]");f.elements.destination.value="Destino sintético";f.elements.volumes.value="2";f.elements.note.value="Coleta no local escolhido";f.requestSubmit();})()');
+        await waitFor('document.querySelector("[data-collection=create]").elements.destination.value===""');
+        assert.equal(calls.find(c=>c.path==='/api/collections'&&c.action==='create').input.pickup_address_id,uid(61));
         await tab('cargos');await evaluate('document.querySelector("[data-freight-open]").click()');await waitFor('document.querySelector("[data-freight-action=references]")');
         await waitFor('document.querySelector("[data-freight-relations]")?.textContent.includes("Convidar contato")');
         assert(calls.some(c=>c.path==='/api/documents'&&c.action==='list'&&c.input.order_id===uid(13)));

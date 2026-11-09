@@ -21,12 +21,12 @@ test('task queues use confirmed stages and matching company/cargo; no invented p
   assert.deepEqual(taskRows(data,'a','collections',{role:'collector',id:'someone-else'}),[]);
 });
 test('record deep link and return keep list filters; task switching does not query again or submit writes',async()=>{
-  let calls=0;const root={innerHTML:'',isConnected:true,events:{},querySelector(){return null;},addEventListener(name,fn){this.events[name]=fn;}};
-  const controller=await mountCollections(root,{companyId:'a',membership:{role:'owner'},branchList:[],customers:[],vehicles:[],request:async()=>{calls++;return {result:data};}});
+  const calls=[];const root={innerHTML:'',isConnected:true,events:{},querySelector(){return null;},addEventListener(name,fn){this.events[name]=fn;}};
+  const controller=await mountCollections(root,{companyId:'a',membership:{role:'owner'},branchList:[],customers:[],vehicles:[],request:async(path,payload)=>{calls.push({path,action:payload.action});return path==='pickup-addresses'?{records:[]}:{result:data};}});
   await controller.setTask('receiving',{orderId:'confirmed'});
   assert(root.innerHTML.includes('data-collection-back'));assert(root.innerHTML.includes('data-order-card="confirmed"'));assert(!root.innerHTML.includes('data-order-card="new"'));
   root.events.click({target:{closest:selector=>selector==='[data-collection-back]'?{}:null}});await new Promise(setImmediate);
   assert(!root.innerHTML.includes('data-collection-back'));assert(root.innerHTML.includes('data-order-card="confirmed"'));
   await controller.setTask('cargos');assert(root.innerHTML.includes('data-order-card="cargo"'));assert(!root.innerHTML.includes('data-collection="receive"'));
-  await controller.setTask('receiving',{orderId:'outside-window'});assert(root.innerHTML.includes('Registro fora deste recorte ou sem acesso'));assert.equal(calls,1);
+  await controller.setTask('receiving',{orderId:'outside-window'});assert(root.innerHTML.includes('Registro fora deste recorte ou sem acesso'));assert.deepEqual(calls,[{path:'collections',action:'list'},{path:'pickup-addresses',action:'list'}]);
 });

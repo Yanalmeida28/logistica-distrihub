@@ -36,6 +36,31 @@ test('customer endpoint requires session and scopes updates to company/id withou
 });
 async function server(api,action){const s=http.createServer(async(req,res)=>{if(!await api(req,res)){res.writeHead(404);res.end();}});await new Promise(r=>s.listen(0,'127.0.0.1',r));try{await action('http://127.0.0.1:'+s.address().port);}finally{await new Promise(r=>s.close(r));}}
 const headers={Host:'127.0.0.1:4180',Origin:'http://127.0.0.1:4180','Content-Type':'application/json'};
+
+test('saved pickup address uses the dedicated RPC and never trusts an address string or role from the browser',async()=>{
+ const id='00000000-0000-4000-8000-000000000001';let called;
+ const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {data:{id}};}};
+ await server(createApi({config,clientFactory:()=>client}),async base=>{
+  const payload={company_id:id,branch_id:id,customer_id:id,pickup_address_id:id,pickup_address:'Forged',role:'owner',action:'create',request_id:id,volumes:2,destination:'Synthetic destination',note:'Synthetic arrival'};
+  assert.equal((await localFetch(base+'/api/collections',{method:'POST',headers,body:JSON.stringify(payload)})).status,401);
+  const login=await localFetch(base+'/api/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.invalid',password:'fake'})});const authorized={...headers,Cookie:login.headers.get('set-cookie').split(';')[0]};
+  assert.equal((await localFetch(base+'/api/collections',{method:'POST',headers:authorized,body:JSON.stringify(payload)})).status,200);
+  assert.equal(called.name,'log_collection_from_address');assert.equal(called.args.p_payload.pickup_address_id,id);
+  assert(!('pickup_address' in called.args.p_payload));assert(!('role' in called.args.p_payload));assert(!('p_action' in called.args));
+  assert.equal((await localFetch(base+'/api/collections',{method:'POST',headers:authorized,body:JSON.stringify({...payload,pickup_address_id:'invalid'})})).status,400);
+ });
+});
+
+test('pickup address update is scoped to company/id and cannot move customer, branch, creator or grant privileges',async()=>{
+ const id='00000000-0000-4000-8000-000000000001';let table,record,filters;
+ const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},from:name=>{table=name;const q={update:value=>{record=value;filters=[];return q;},eq:(key,value)=>{filters.push([key,value]);return q;},select:()=>q,single:async()=>({data:{id}})};return q;}};
+ await server(createApi({config,clientFactory:()=>client}),async base=>{
+  assert.equal((await localFetch(base+'/api/pickup-addresses',{method:'POST',headers,body:'{}'})).status,401);
+  const login=await localFetch(base+'/api/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.invalid',password:'fake'})});const authorized={...headers,Cookie:login.headers.get('set-cookie').split(';')[0]};
+  const result=await localFetch(base+'/api/pickup-addresses',{method:'POST',headers:authorized,body:JSON.stringify({action:'update',company_id:id,id,label:'Depósito',address:'Rua fictícia 200',active:false,customer_id:'foreign',branch_id:'foreign',created_by:'forged',role:'owner'})});
+  assert.equal(result.status,200);assert.equal(table,'log_customer_pickup_addresses');assert.deepEqual(record,{label:'Depósito',address:'Rua fictícia 200',active:false});assert.deepEqual(filters,[['company_id',id],['id',id]]);
+ });
+});
 test('portal, documentos e chat exigem sessao; API nao aceita identidade forjada',async()=>{
   const id='00000000-0000-4000-8000-000000000001';let called;
   const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {error:{message:'PRIVATE SQL ERROR'}};}};
