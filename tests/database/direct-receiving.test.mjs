@@ -71,6 +71,8 @@ test('direct receiving, legacy migration, cargo sheet and resource isolation in 
    await as(1);const payload=command({id:legacy.cargo_id,expected_version:1,next_status:'shipped'});
    const first=await rpc('log_cargos_workspace',company,'advance',payload);assert.deepEqual(await rpc('log_cargos_workspace',company,'advance',payload),first);
    const sheet=await rpc('log_cargos_workspace',company,'detail',{id:legacy.cargo_id});assert.equal(sheet.cargo.status,'shipped');assert.equal(sheet.events.filter(e=>e.action==='shipped').length,1);assert(sheet.events.some(e=>e.action==='collect'));
+   let version=first.version;for(const next_status of ['destination','out_for_delivery','delivered'])version=(await rpc('log_cargos_workspace',company,'advance',command({id:legacy.cargo_id,expected_version:version,next_status}))).version;
+   assert.equal((await rpc('log_cargos_workspace',company,'detail',{id:legacy.cargo_id})).cargo.status,'delivered');
   });
   await t.test('direct cargo portal grants expose only authorized fields and explicitly shared documents',async()=>{
    await as(1);await assert.rejects(rpc('log_portal',company,'manage',{order_id:direct.id}));await assert.rejects(rpc('log_documents',company,'list',{cargo_id:os.id}));
@@ -87,6 +89,12 @@ test('direct receiving, legacy migration, cargo sheet and resource isolation in 
    await as(7);await assert.rejects(rpc('log_portal',company,'list'));await assert.rejects(rpc('log_documents',company,'download',{id:doc.id}));
    await as(1);await rpc('log_portal',company,'revoke',{cargo_id:direct.id,membership_id:member});
    await as(6);assert.equal((await rpc('log_portal',company,'list')).length,0);await assert.rejects(rpc('log_documents',company,'download',{id:doc.id}));
+  });
+  await t.test('delivered collection cargo is visible to its authorized contact, not another contact',async()=>{
+   await as(1);const invitation=await rpc('log_portal',company,'invite',{order_id:os.id,email:'synthetic7@example.invalid'});
+   await as(7);await rpc('log_portal',company,'accept',{id:invitation.id});const view=await rpc('log_portal',company,'list');assert.equal(view.length,1);assert.equal(view[0].id,os.id);assert.equal(view[0].status,'delivered');
+   assert.equal(view[0].events.filter(e=>e.action==='collect').length,1);assert.equal(view[0].events.filter(e=>e.action==='receive').length,1);assert.equal(view[0].events.filter(e=>e.action==='delivered').length,1);
+   await as(6);assert.equal((await rpc('log_portal',company,'list')).length,0);
   });
   await t.test('failed creation rolls back both cargo and command; ACL does not expose private resources',async()=>{
    await as(1);const broken=command({branch_id:branch,customer_id:customer,destination:'Invalid volumes',volumes:0});await assert.rejects(rpc('log_cargos_workspace',company,'create_direct',broken));

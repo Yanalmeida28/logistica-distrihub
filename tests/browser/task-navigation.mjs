@@ -22,6 +22,7 @@ const server=http.createServer(async(req,res)=>{
       if(input.action==='create_direct'){const c={id:uid(receiptIndex++),company_id:company,branch_id:input.branch_id,customer_id:input.customer_id,destination:input.destination,volumes:input.volumes,origin:'direct',order_id:null,status:'received',version:1,nf_reference:null,cte_reference:null};receipts.push(c);return json(200,{result:{id:c.id}});}
       if(input.action==='list')return denied?json(403,{error:'Synthetic denied'}):json(200,{result:receipts});
       const c=receipts.find(r=>r.id===input.id);if(!c)return json(403,{error:'Synthetic cargo missing'});
+      if(input.action==='advance'){c.status=input.next_status;c.version++;return json(200,{result:{id:c.id}});}
       if(input.action==='references'){c.nf_reference=input.nf_reference;c.cte_reference=input.cte_reference;c.version++;return json(200,{result:{id:c.id}});}
       if(input.action==='detail')return json(200,{result:{cargo:c,events:[{action:'receive_direct',note:'Synthetic arrival',actor_id:uid(1),at:new Date().toISOString()}]}});
     }
@@ -84,8 +85,26 @@ try{
         await waitFor('document.querySelector("[data-operation-tab=cargos]").getAttribute("aria-current")==="page"&&document.querySelector("[data-freight-action=references]")');
         assert.equal(calls.filter(c=>c.path==='/api/cargos'&&c.action==='create_direct').length,1);
         assert.equal(await evaluate('document.querySelector("[data-operation-panel=cargos]").textContent.includes("Chegada direta")'),true);
+        const directId=receipts.at(-1).id;
+        await tab('overview');await evaluate('document.querySelector("[data-overview-refresh]").click()');
+        await waitFor('document.querySelector('+JSON.stringify('[data-overview-cargo="'+directId+'"]')+')');
+        await evaluate('document.querySelector('+JSON.stringify('[data-overview-cargo="'+directId+'"]')+').click()');
+        await waitFor('document.querySelector("[data-freight-action=references]")');
+        await waitFor('document.querySelector("[data-freight-action=references] button:not(:disabled)")');
         await evaluate('(()=>{const f=document.querySelector("[data-freight-action=references]");f.elements.nf_reference.value="NF-SYNTHETIC";f.elements.cte_reference.value="CTE-SYNTHETIC";f.elements.note.value="Synthetic later references";f.requestSubmit();})()');
         await waitFor('document.querySelector("[data-freight-action=references]")?.dataset.version==="2"');
+        let physicalVersion=2;
+        for(const nextStatus of ['shipped','destination','out_for_delivery','delivered']){
+          await waitFor('document.querySelector("[data-freight-action=advance] button:not(:disabled)")');
+          await evaluate('(()=>{const f=document.querySelector("[data-freight-action=advance]");f.elements.note.value="Synthetic physical confirmation";f.requestSubmit();})()');physicalVersion++;
+          await waitFor('document.querySelector("[data-freight-action=references]")?.dataset.version==='+JSON.stringify(String(physicalVersion)));
+        }
+        assert.equal(await evaluate('document.querySelector("[data-freight-action=advance]")===null'),true);
+        await send('Page.reload');
+        await waitFor('document.querySelector('+JSON.stringify('[data-overview-cargo="'+directId+'"]')+')');
+        await evaluate('document.querySelector('+JSON.stringify('[data-overview-cargo="'+directId+'"]')+').click()');
+        await waitFor('document.querySelector("[data-freight-action=references]")?.dataset.version==="6"');
+
         await evaluate('document.querySelector("[data-freight-back]").click()');
         await waitFor('document.querySelector("[data-freight-open]")');
         await tab('relations');await tab('chat');

@@ -9,6 +9,22 @@ test('summary groups authoritative stages, deduplicates orders and ignores anoth
   assert.equal(result.total,6);
   assert.deepEqual(result.counters,{pending:1,inProgress:1,collected:1,received:1,inTransit:1,delivered:1,other:0});
 });
+test('Hoje includes direct receipts without inventing an OS, deduplicates and respects company/branch',()=>{
+ const direct={id:'direct',company_id:'a',branch_id:'b',origin:'direct',order_id:null,status:'received',volumes:3};
+ const result=summarizeOperations({orders:[order('os','collected')],cargos:[],directCargos:[direct,direct,{...direct,id:'foreign',company_id:'other'},{...direct,id:'branch',branch_id:'other'}]},'a','b');
+ assert.equal(result.directCount,1);assert.equal(result.orderCount,1);assert.equal(result.counters.received,1);assert.equal(result.counters.collected,1);assert.equal(result.rows.find(r=>r.kind==='cargo').order_id,null);
+});
+test('Hoje opens direct cargo sheet and marks the summary partial if its endpoint is unavailable',async()=>{
+ const r=root();let missing=false,navigation;
+ const direct={id:'direct',company_id:'a',branch_id:'b',origin:'direct',order_id:null,status:'received',volumes:3,destination:'<private>'};
+ await mountOverview(r,{companyId:'a',membership:{role:'owner'},branchList:[],onNavigate:(...args)=>navigation=args,request:async path=>{
+  if(path==='cargos'){if(missing)throw Error('Unavailable');return {result:[direct]};}return {result:{orders:[],cargos:[]}};
+ }});
+ const body=r.elements['[data-overview-body]'];assert(body.innerHTML.includes('data-overview-cargo="direct"'));assert(!body.innerHTML.includes('<private>'));
+ r.events.click({target:{closest:selector=>selector==='[data-overview-cargo]'?{dataset:{overviewCargo:'direct'}}:null}});assert.deepEqual(navigation,['cargos',{cargoId:'direct'}]);
+ missing=true;r.events.click({target:{closest:selector=>selector==='[data-overview-refresh]'}});await new Promise(setImmediate);
+ assert(body.innerHTML.includes('resumo está parcial'));assert(!body.innerHTML.includes('data-overview-cargo="direct"'));
+});
 function root(){
   const elements={'[data-overview-body]':{innerHTML:''},'[data-overview-status]':{textContent:''},'[data-overview-refresh]':{disabled:false}};
   return {isConnected:true,innerHTML:'',events:{},elements,querySelector(selector){return elements[selector];},addEventListener(name,fn){this.events[name]=fn;}};
