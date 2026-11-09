@@ -32,7 +32,7 @@ function render(){
     void mountRelations(root.querySelector('[data-access-portal]'),{request,companyId:'',membership:null,run,reload,notify});
     return;
   }
-  const membership=workspace.memberships.find(m=>m.company_id===companyId&&m.active),owner=membership?.role==='owner',admin=['owner','administrative'].includes(membership?.role);
+  const membership=workspace.memberships.find(m=>m.company_id===companyId&&m.active),owner=membership?.role==='owner',admin=['owner','administrative','manager'].includes(membership?.role);
   const branches=workspace.branches.filter(b=>b.company_id===companyId),activeBranches=branches.filter(b=>b.active);
   const branchSelect=(shared=false)=>'<label>Filial<select name="branch_id" required>'+(shared&&owner?'<option value="">Compartilhado na empresa</option>':'')+activeBranches.map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>').join('')+'</select></label>';
   const list=(kind,label)=>'<h3>'+label+'</h3>'+workspace[kind].filter(r=>r.company_id===companyId).map(r=>'<div class="operation-list" data-search-row><strong>'+esc(r.name??r.identifier)+'</strong><small> · '+esc(kind==='branches'?'Filial':r.branch_id==null?'Compartilhado na empresa':branches.find(b=>b.id===r.branch_id)?.name??'Filial vinculada')+(r.active?'':' · Inativo')+'</small></div>').join('');
@@ -47,7 +47,7 @@ function render(){
   void mountTeam(teamRoot,{request,companyId,owner,branchList:branches,reload,run,notify});
   let collectionsReady=Promise.resolve(null),freightReady=Promise.resolve(null);
   if(admin){const freightRoot=document.createElement('div');freightRoot.dataset.operationPanel='cargos';root.append(freightRoot);freightReady=mountFreight(freightRoot,{request,companyId,membership,customers:workspace.customers,branches,run,reload,notify});}
-  if(['owner','administrative','driver','collector'].includes(membership?.role)){
+  if(['owner','administrative','manager','driver','collector'].includes(membership?.role)){
     const collectionsRoot=document.createElement('div');collectionsRoot.dataset.operationPanel='collections';root.append(collectionsRoot);
     collectionsReady=mountCollections(collectionsRoot,{request,companyId,membership,branchList:branches,customers:workspace.customers,vehicles:workspace.vehicles,reload,run,notify,companyName:companies.find(c=>c.id===companyId)?.name,onOpenCargo:id=>{setTimeout(()=>void navigateTo('cargos',{cargoId:id}),0);}});
   }
@@ -66,7 +66,7 @@ function render(){
     else if(node.dataset.operationPanel)panels.append(node);else overview.append(node);
   }
   panels.prepend(overview);
-  if(!['owner','administrative','driver','collector','client'].includes(membership?.role))overview.insertAdjacentHTML('beforeend','<section class="card"><h2>Sem acesso operacional</h2><p>Nenhum perfil ativo autorizado nesta transportadora. Consulte seus convites ou solicite a revis\u00e3o do acesso.</p></section>');
+  if(!['owner','administrative','manager','driver','collector','client'].includes(membership?.role))overview.insertAdjacentHTML('beforeend','<section class="card"><h2>Sem acesso operacional</h2><p>Nenhum perfil ativo autorizado nesta transportadora. Consulte seus convites ou solicite a revis\u00e3o do acesso.</p></section>');
   panels.querySelectorAll('[data-operation-panel]').forEach(panel=>{
     panel.id='operation-panel-'+panel.dataset.operationPanel;panel.tabIndex=-1;
     panel.hidden=!tabs.some(([id])=>operationPanelId(id)===panel.dataset.operationPanel);

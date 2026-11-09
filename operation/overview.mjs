@@ -17,11 +17,11 @@ export function summarizeOperations(data,companyId,branch=''){
 
 export async function mountOverview(root,{request,companyId,membership,branchList,onNavigate}){
   if(!companyId)return;
-  if(!['owner','administrative','driver','collector'].includes(membership?.role)){
+  if(!['owner','administrative','manager','driver','collector'].includes(membership?.role)){
     root.innerHTML='<section class="card"><h2>Acompanhe suas cargas</h2><p>Consulte as cargas e os documentos que a transportadora compartilhou com você.</p><button type="button" class="primary" data-overview-portal>Abrir portal e documentos</button></section>';
     root.addEventListener('click',event=>{if(event.target.closest('[data-overview-portal]'))onNavigate('relations');});return;
   }
-  const admin=['owner','administrative'].includes(membership.role);
+  const admin=['owner','administrative','manager'].includes(membership.role);
   let snapshot=null,branch='',loading=false,updated='';
   root.innerHTML='<section class="card"><h2>Hoje</h2><p>Prioridades atuais no recorte de ordens recentes, sem filtro por data de criação.</p><label>Filial do resumo<select data-overview-branch><option value="">Todas as autorizadas</option>'+branchList.filter(item=>item.active).map(item=>'<option value="'+esc(item.id)+'">'+esc(item.name)+'</option>').join('')+'</select></label><div class="overview-actions"><button type="button" class="secondary" data-overview-refresh>Atualizar resumo</button><button type="button" class="primary" data-overview-collections>Abrir coletas e cargas</button></div><p data-overview-status role="status">Carregando dados da operação…</p><div data-overview-body></div></section>';
   const body=root.querySelector('[data-overview-body]'),status=root.querySelector('[data-overview-status]');

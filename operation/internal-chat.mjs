@@ -1,6 +1,6 @@
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function mountInternalChat(root,{request,companyId,membership,branchList,run,notify=()=>{}}){
- if(!companyId||!['owner','administrative','driver','collector'].includes(membership?.role))return;
+ if(!companyId||!['owner','administrative','manager','driver','collector'].includes(membership?.role))return;
  let branch='',recipient='',key=crypto.randomUUID(),loading=false;
  root.innerHTML='<section class="card"><h2>Chat interno</h2><p>Central ↔ motoristas e coletores da mesma filial. Até 100 mensagens recentes por conversa. Sem anexos ou confirmação de leitura.</p><label>Filial<select data-chat-branch><option value="">Selecione</option>'+branchList.filter(b=>b.active).map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>').join('')+'</select></label><label>Conversar com<select data-chat-peer><option value="">Selecione a filial</option></select></label><div data-chat-history role="log" aria-live="polite"></div><form data-chat-form><label>Mensagem<textarea name="body" required maxlength="2000" rows="3"></textarea></label><button>Enviar mensagem interna</button></form><button type="button" data-chat-refresh>Atualizar conversa</button><p data-chat-status role="status"></p></section>';
  async function history(){

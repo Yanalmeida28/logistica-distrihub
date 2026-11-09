@@ -7,8 +7,8 @@ const labels={create:'OS criada',assign:'Coleta atribuída',release:'Atribuiçã
 const nextCargo={received:'shipped',shipped:'destination',destination:'out_for_delivery',out_for_delivery:'delivered'};
 const field=(name,label,extra='')=>'<label>'+label+'<input name="'+name+'" required '+extra+'></label>';
 export async function mountCollections(root,{request,companyId,membership,branchList,customers,vehicles,reload,run,notify=()=>{},companyName='Transportadora',onOpenCargo=()=>{}}){
-  if(!companyId||!['owner','administrative','driver','collector'].includes(membership?.role)){root.innerHTML='<section class="card"><h2>Sem acesso</h2><p>Seu perfil n\u00e3o tem acesso a esta opera\u00e7\u00e3o.</p></section>';return;}
-  let dirty=false,loading=false,lastData=null,lastSnapshot='',task='collections',selectedId='';const filters={term:'',branch:'',status:'',page:1};const admin=['owner','administrative'].includes(membership?.role);
+  if(!companyId||!['owner','administrative','manager','driver','collector'].includes(membership?.role)){root.innerHTML='<section class="card"><h2>Sem acesso</h2><p>Seu perfil n\u00e3o tem acesso a esta opera\u00e7\u00e3o.</p></section>';return;}
+  let dirty=false,loading=false,lastData=null,lastSnapshot='',task='collections',selectedId='';const filters={term:'',branch:'',status:'',page:1};const admin=['owner','administrative','manager'].includes(membership?.role);
   const keys=new Map();const key=name=>{if(!keys.has(name))keys.set(name,crypto.randomUUID());return keys.get(name);};
   root.innerHTML='<section class="card"><h2>Coletas e cargas</h2><p>Carregando…</p></section>';
   async function load(fromCache=false){

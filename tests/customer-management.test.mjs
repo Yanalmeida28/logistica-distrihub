@@ -25,8 +25,8 @@ test('forms escape personal data; shared customers only offered to owner; branch
 });
 test('administration is limited to management roles, settings has no credential entry or invented financial balance',()=>{
   const workspace={companies:[{id:'a',name:'<Empresa>'}],branches:[],customers:[],vehicles:[],user:{email:'<email>'}};
-  for(const role of ['owner','administrative','driver','collector','client']){
-    const tabs=operationTabs(role,true).map(([id])=>id),management=['owner','administrative'].includes(role);
+  for(const role of ['owner','administrative','manager','driver','collector','client']){
+    const tabs=operationTabs(role,true).map(([id])=>id),management=['owner','administrative','manager'].includes(role);
     assert.equal(tabs.includes('administrative'),management);assert.equal(tabs.includes('customers'),false);assert.equal(tabs.includes('settings'),!management);
     const html=managementMarkup({workspace,companyId:'a',membership:{role},mode:'homologation'});
     assert.equal(html.includes('data-operation-panel="administrative"'),management);assert(!html.includes('<Empresa>'));assert(!html.includes('<email>'));assert(!html.includes('type="password"'));

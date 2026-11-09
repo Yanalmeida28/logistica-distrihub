@@ -1,5 +1,25 @@
 # Homologação Supabase independente
 
+## Atualização de 09/11/2026 — pendências estruturais instaladas
+
+Após autorização específica, foram instaladas exclusivamente no `logistica-lab` as migrations customer_profile, direct_receiving e manager_role. Agora há nove migrations registradas. Os identificadores remotos e a validação estão em [PENDENCIAS_OPERACIONAIS.md](PENDENCIAS_OPERACIONAIS.md). As indicações abaixo de migrations pendentes descrevem estados anteriores.
+
+As 14 verificações estruturais passaram: contratos Auth, cadastro ampliado, carga direta, Gerente, RLS e seis RPCs públicos com proprietário postgres, SECURITY INVOKER e EXECUTE negado a anon. Os corpos anteriores das oito funções privadas substituídas corresponderam à baseline local por MD5 com normalização CRLF/LF. Nenhuma identidade foi promovida e nenhum dado de teste remoto foi criado nesta instalação.
+
+A homologação com sessões reais, Storage e concorrência entre conexões continua pendente. O advisor trouxe nove informações de RLS sem policies em tabelas privadas dos RPCs e um aviso de proteção de senhas vazadas desativada; não foram criadas policies permissivas nem alterada a configuração Auth. Não houve publicação de código ou alteração no ERP.
+
+## Estado confirmado em 7/11/2026 — módulos instalados
+
+As quatro migrations locais de equipe, coletas, portal/chat/documentos e Storage privado foram aplicadas com sucesso exclusivamente em `logistica-lab` (`cbbvmtinbgsmehthlhgn`). O projeto tem seis migrations registradas e 18 tabelas próprias, todas com RLS e sem SELECT para anon. Os cinco novos RPCs públicos são invoker, pertencem a postgres e concedem EXECUTE a authenticated, sem EXECUTE para anon. As concessões por coluna dos cadastros iniciais foram preservadas.
+
+O bucket `logistics-private-documents` foi criado privado, limitado a 5 MiB e PDF/PNG/JPEG. As sete políticas de Storage foram instaladas, incluindo guardas restritivas de acesso e bloqueio de sobrescrita/exclusão por usuários.
+
+`npm run verify:homologation` executou com sucesso após a instalação: Auth e Data API acessíveis, cinco RPCs novos reconhecidos e negados para anon, dez tabelas novas sem leitura anônima. A inspeção adicional confirmou funções privadas com proprietário postgres e search_path vazio, nenhum EXECUTE para PUBLIC e nenhum USAGE do schema privado para anon. Nenhum dado foi criado por essas verificações.
+
+O advisor de segurança retornou apenas sete avisos informativos de [RLS sem política](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy), correspondentes às tabelas sem acesso direto dos usuários, acessadas exclusivamente pelos RPCs autorizados. Não foram criadas políticas permissivas para remover esse aviso. O advisor de desempenho retornou somente [índices ainda não utilizados](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index), esperado antes de uso; os índices foram preservados.
+
+Ainda há **zero contas Auth e zero empresas**. Não foram criadas identidades, usuários, empresas de teste ou arquivos neste ajuste. A instalação e a inspeção dos metadados não comprovam login, transferências de arquivos ou jornadas entre usuários. Criar contas verificadas de teste de forma privada e executar a homologação autenticada continua sendo o próximo passo. O DistriHub não foi acessado ou modificado. As seções abaixo registram o histórico das etapas anteriores; as referências a migrations ainda não instaladas descrevem aquele momento.
+
 **Parte 5 — local, 7/11/2026:** portal, chat e documentos preparados nas migrations `20261107154433_logistics_portal_chat_documents.sql` e `20261107154438_logistics_private_storage.sql`. Não instaladas remotamente. A segunda exige o Supabase Storage real e não é executada no PGlite. Detalhes e testes pendentes em [RELACIONAMENTO_OPERACIONAL.md](RELACIONAMENTO_OPERACIONAL.md).
 
 **Fluxo operacional — 7/11/2026:** `20261107152635_logistics_collection_workflow.sql` prepara OS persistentes, atribuição manual, coleta, recebimento e acompanhamento de cargas. Testada somente em PostgreSQL descartável. Não aplicada neste projeto hospedado. Consulte [COLETAS_OPERACIONAIS.md](COLETAS_OPERACIONAIS.md).

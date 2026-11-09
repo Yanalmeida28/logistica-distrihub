@@ -7,7 +7,7 @@ async function download(companyId,id,filename){
 }
 const fileBase64=file=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=()=>reject(Error('Arquivo não pôde ser lido.'));r.readAsDataURL(file);});
 export async function mountRelations(root,{request,companyId,membership,run,reload,notify=()=>{},resource=null}){
- const admin=['owner','administrative'].includes(membership?.role),client=membership?.role==='client';
+ const admin=['owner','administrative','manager'].includes(membership?.role),client=membership?.role==='client';
  let orderId=resource?.order_id??resource?.cargo_id??'',downloads=new Map(),uploadKey=crypto.randomUUID();
  const resourcePayload=()=>resource??{order_id:orderId};
  root.innerHTML='<section class="card"><h2>Portal e documentos</h2><p>Carregando…</p></section>';

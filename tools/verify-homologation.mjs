@@ -11,3 +11,12 @@ assert.equal(error?.code,'42501','Acesso anonimo deveria ser recusado por privil
 const {error:rpcError}=await client.rpc('log_create_company',{p_name:'Unreachable anonymous operation',p_branch:'Unreachable'});
 assert.equal(rpcError?.code,'42501','Bootstrap anonimo deveria ser recusado antes de executar.');
 console.log('PASS homologacao: Auth acessivel, Data API disponivel, leitura anonima bloqueada e bootstrap sem EXECUTE anonimo. Nenhuma conta ou dado criado.');
+for(const name of ['log_team','log_collections','log_portal','log_documents','log_chat','log_cargos_workspace']){
+  const {error}=await client.rpc(name,{p_company:null,p_action:'list',p_payload:{}});
+  assert.equal(error?.code,'42501','RPC deve existir e negar EXECUTE anonimo: '+name);
+}
+for(const name of ['log_team_invites','log_collection_orders','log_cargos','log_collection_events','log_collection_commands','log_portal_invites','log_portal_grants','log_documents','log_document_grants','log_chat_messages','log_cargo_events','log_cargo_commands']){
+  const {error}=await client.from(name).select('*').limit(0);
+  assert.equal(error?.code,'42501','Tabela deve negar leitura anonima: '+name);
+}
+console.log('PASS novos modulos: seis RPCs reconhecidos e sem EXECUTE anonimo; doze tabelas novas sem leitura anonima. Fluxos autenticados e Storage real com arquivos continuam pendentes.');

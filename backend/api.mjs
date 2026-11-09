@@ -96,7 +96,7 @@ export function createApi({config=databaseConfig(),clientFactory=createClient,cl
         const payload={};
         if(['accept','revoke','update'].includes(input.action)){if(!UUID.test(input.id))throw Error('validation');payload.id=input.id;}
         if(['invite','update'].includes(input.action)){
-          if(!['administrative','collector','driver'].includes(input.role)||!Array.isArray(input.branch_ids)||(input.branch_ids.length<1&&!(input.action==='update'&&input.active===false))||input.branch_ids.length>100||input.branch_ids.some(id=>!UUID.test(id)))throw Error('validation');
+          if(!['administrative','manager','collector','driver'].includes(input.role)||!Array.isArray(input.branch_ids)||(input.branch_ids.length<1&&!(input.action==='update'&&input.active===false))||input.branch_ids.length>100||input.branch_ids.some(id=>!UUID.test(id)))throw Error('validation');
           payload.role=input.role;payload.branch_ids=[...new Set(input.branch_ids)];
           if(input.action==='invite')payload.email=text(input.email,3,254);
           else {if(typeof input.active!=='boolean')throw Error('validation');payload.active=input.active;}

@@ -2,7 +2,7 @@ export const collectionTasks=['collections','receiving','pending'];
 export const operationPanelId=id=>collectionTasks.includes(id)?'collections':id;
 export function operationTabs(role,hasCompany){
   if(!hasCompany)return [['overview','Primeiros passos'],['team','Convites']];
-  if(['owner','administrative'].includes(role))return [['overview','Hoje'],['collections','Coletas'],['receiving','Recebimento'],['cargos','Cargas'],['pending','Pendências'],['administrative','Gestão'],['relations','Portal e documentos'],['chat','Chat da central']];
+  if(['owner','administrative','manager'].includes(role))return [['overview','Hoje'],['collections','Coletas'],['receiving','Recebimento'],['cargos','Cargas'],['pending','Pendências'],['administrative','Gestão'],['relations','Portal e documentos'],['chat','Chat da central']];
   if(['driver','collector'].includes(role))return [['collections','Minhas coletas'],['chat','Chat da central'],['team','Convites'],['settings','Minha conta']];
   if(role==='client')return [['relations','Minhas cargas'],['team','Convites'],['settings','Minha conta']];
   return [['overview','Sem acesso'],['team','Convites']];

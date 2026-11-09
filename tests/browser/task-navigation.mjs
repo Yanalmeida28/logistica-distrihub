@@ -53,13 +53,13 @@ try{
   await send('Runtime.enable');await send('Page.enable');
   for(const width of [1440,390]){
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===390});
-    for(const currentRole of ['owner','administrative','driver','collector','client','none']){
+    for(const currentRole of ['owner','administrative','manager','driver','collector','client','none']){
       role=currentRole;empty=false;denied=false;calls=[];receipts=[{id:uid(90),company_id:company,branch_id:branch,customer_id:uid(5),destination:'Synthetic collected cargo',volumes:2,origin:'collection',order_id:uid(13),status:'received',version:1,nf_reference:null,cte_reference:null}];
       await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/operacao/?role='+role});
       const first=role==='client'?'relations':['driver','collector'].includes(role)?'collections':'overview';
       await waitFor('document.querySelector("[data-operation-tab][aria-current=page]")?.dataset.operationTab==='+JSON.stringify(first));
       await delay(150);
-      if(['owner','administrative'].includes(role)){
+      if(['owner','administrative','manager'].includes(role)){
         await waitFor('document.querySelector("[data-overview-order]")');
         await evaluate('document.querySelector("[data-overview-order][data-overview-task=receiving]").click()');
         await waitFor('document.querySelector("[data-operation-tab=receiving]").getAttribute("aria-current")==="page"');

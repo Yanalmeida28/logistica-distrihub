@@ -1,5 +1,5 @@
 export function administrativeSections(role){
-  if(!['owner','administrative'].includes(role))return [];
+  if(!['owner','administrative','manager'].includes(role))return [];
   return [['home','Gest\u00e3o da transportadora'],['customers','Clientes'],['branches','Filiais'],['vehicles','Ve\u00edculos'],...(role==='owner'?[['team','Equipe e convites']]:[['team','Meus convites']]),['settings','Configura\u00e7\u00f5es']];
 }
 
@@ -11,7 +11,7 @@ export function mountAdministrativeArea(panels,{role,selected='home',onSelect=()
   while(host.firstChild)home.append(host.firstChild);
   home.dataset.adminView='home';
   host.classList.remove('card');host.classList.add('administrative-area');
-  host.innerHTML='<header class="admin-area-header"><p class="eyebrow">ÁREA RESERVADA</p><h2>Gestão da transportadora</h2><p>Gerencie a transportadora nesta área. As permissões da sua conta e das filiais continuam sendo validadas em cada operação.</p><span class="badge">'+(role==='owner'?'Proprietário · gestão completa disponível':'Administrativo · filiais autorizadas')+'</span></header><nav class="admin-area-nav" aria-label="Seções administrativas">'+sections.map(([id,label])=>'<button type="button" class="secondary" data-admin-go="'+id+'" aria-controls="admin-view-'+id+'">'+label+'</button>').join('')+'</nav>';
+  host.innerHTML='<header class="admin-area-header"><p class="eyebrow">ÁREA RESERVADA</p><h2>Gestão da transportadora</h2><p>Gerencie a transportadora nesta área. As permissões da sua conta e das filiais continuam sendo validadas em cada operação.</p><span class="badge">'+(role==='owner'?'Proprietário · gestão completa disponível':(role==='manager'?'Gerente \u00b7 filiais autorizadas':'Administrativo \u00b7 filiais autorizadas'))+'</span></header><nav class="admin-area-nav" aria-label="Seções administrativas">'+sections.map(([id,label])=>'<button type="button" class="secondary" data-admin-go="'+id+'" aria-controls="admin-view-'+id+'">'+label+'</button>').join('')+'</nav>';
   const body=doc.createElement('div');body.className='admin-area-body';body.append(home);host.append(body);
   for(const [id] of sections){
     if(id==='home')continue;
