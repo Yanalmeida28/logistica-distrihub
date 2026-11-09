@@ -4,6 +4,21 @@ import http from 'node:http';
 import {createApi} from '../backend/api.mjs';
 import {databaseConfig} from '../backend/config.mjs';
 const config={enabled:true,url:'http://127.0.0.1:54321',key:'sb_publishable_test_only_not_real'};
+test('direct receipt endpoint authenticates, whitelists payload and accepts missing fiscal references',async()=>{
+ const id='00000000-0000-4000-8000-000000000001';let called;
+ const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {data:{id}};}};
+ await server(createApi({config,clientFactory:()=>client}),async base=>{
+  const payload={company_id:id,action:'create_direct',branch_id:id,customer_id:id,destination:'Synthetic destination',volumes:2,note:'Synthetic arrival',request_id:id,created_by:'forged',origin:'collection',status:'delivered'};
+  assert.equal((await localFetch(base+'/api/cargos',{method:'POST',headers,body:JSON.stringify(payload)})).status,401);
+  const login=await localFetch(base+'/api/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.invalid',password:'fake'})});const authorized={...headers,Cookie:login.headers.get('set-cookie').split(';')[0]};
+  assert.equal((await localFetch(base+'/api/cargos',{method:'POST',headers:authorized,body:JSON.stringify(payload)})).status,200);
+  assert.equal(called.name,'log_cargos_workspace');assert.equal(called.args.p_payload.nf_reference,null);assert.equal(called.args.p_payload.cte_reference,null);
+  for(const field of ['created_by','origin','status','company_id'])assert(!(field in called.args.p_payload));
+  assert.equal((await localFetch(base+'/api/cargos',{method:'POST',headers:authorized,body:JSON.stringify({...payload,volumes:1.5})})).status,400);
+  await localFetch(base+'/api/documents',{method:'POST',headers:authorized,body:JSON.stringify({action:'list',company_id:id,cargo_id:id})});assert.deepEqual(called.args.p_payload,{cargo_id:id});
+  assert.equal((await localFetch(base+'/api/documents',{method:'POST',headers:authorized,body:JSON.stringify({action:'list',company_id:id,cargo_id:id,order_id:id})})).status,400);
+ });
+});
 test('customer endpoint requires session and scopes updates to company/id without moving branch or elevating role',async()=>{
   const id='00000000-0000-4000-8000-000000000001',company='00000000-0000-4000-8000-000000000002';let changes,filters;
   const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},from:()=>{

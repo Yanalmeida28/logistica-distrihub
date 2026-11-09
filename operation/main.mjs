@@ -1,3 +1,4 @@
+import {mountFreight} from './freight.mjs';
 import {mountAdministrativeArea} from './admin-area.mjs';
 import {mountCustomers} from './customers.mjs';
 import {managementMarkup,mountManagementNavigation} from './management.mjs';
@@ -44,10 +45,11 @@ function render(){
   root.insertAdjacentHTML('beforeend',managementMarkup({workspace,companyId,membership,mode}));
   const teamRoot=document.createElement('div');teamRoot.dataset.operationPanel='team';root.append(teamRoot);
   void mountTeam(teamRoot,{request,companyId,owner,branchList:branches,reload,run,notify});
-  let collectionsReady=Promise.resolve(null);
+  let collectionsReady=Promise.resolve(null),freightReady=Promise.resolve(null);
+  if(admin){const freightRoot=document.createElement('div');freightRoot.dataset.operationPanel='cargos';root.append(freightRoot);freightReady=mountFreight(freightRoot,{request,companyId,membership,customers:workspace.customers,branches,run,reload,notify});}
   if(['owner','administrative','driver','collector'].includes(membership?.role)){
     const collectionsRoot=document.createElement('div');collectionsRoot.dataset.operationPanel='collections';root.append(collectionsRoot);
-    collectionsReady=mountCollections(collectionsRoot,{request,companyId,membership,branchList:branches,customers:workspace.customers,vehicles:workspace.vehicles,reload,run,notify,companyName:companies.find(c=>c.id===companyId)?.name});
+    collectionsReady=mountCollections(collectionsRoot,{request,companyId,membership,branchList:branches,customers:workspace.customers,vehicles:workspace.vehicles,reload,run,notify,companyName:companies.find(c=>c.id===companyId)?.name,onOpenCargo:id=>{setTimeout(()=>void navigateTo('cargos',{cargoId:id}),0);}});
   }
   const relationsRoot=document.createElement('div');relationsRoot.dataset.operationPanel='relations';root.append(relationsRoot);
   void mountRelations(relationsRoot,{request,companyId,membership,run,reload,notify});
@@ -93,6 +95,7 @@ function render(){
     }
     if(id==='summary')id='overview';
     if(!tabs.some(([key])=>key===id))return;
+    if(id==='cargos'){const controller=await freightReady;if(!layout.isConnected||!controller)return;if(options.cargoId){if(!await controller.open(options.cargoId))return;}else await controller.show();}
     if(collectionTasks.includes(id)){
       const controller=await collectionsReady;
       if(!layout.isConnected||busy||!controller)return;

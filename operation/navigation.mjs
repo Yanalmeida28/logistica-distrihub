@@ -1,4 +1,4 @@
-export const collectionTasks=['collections','receiving','cargos','pending'];
+export const collectionTasks=['collections','receiving','pending'];
 export const operationPanelId=id=>collectionTasks.includes(id)?'collections':id;
 export function operationTabs(role,hasCompany){
   if(!hasCompany)return [['overview','Primeiros passos'],['team','Convites']];

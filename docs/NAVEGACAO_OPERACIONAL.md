@@ -1,5 +1,7 @@
 # Área autenticada por tarefa
 
+Atualização posterior: o recebimento direto e a ficha única estão descritos em [RECEBIMENTO_DIRETO.md](RECEBIMENTO_DIRETO.md). Cargas agora tem consulta própria para ambas as origens; os trechos abaixo sobre ausência de recebimento direto registram o estado da etapa anterior.
+
 Base do checkout: `bb2860a6a3d751c05562d83e017b44974ccddd2b`, preservando e adaptando a reorganização administrativa local que já existia. Nenhum AGENTS.md aplicável foi encontrado no repositório nem nos diretórios ancestrais verificados.
 
 ## Navegação

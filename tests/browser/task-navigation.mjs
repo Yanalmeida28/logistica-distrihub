@@ -6,18 +6,26 @@ import {spawn} from 'node:child_process';
 import assert from 'node:assert/strict';
 const repo=new URL('../../',import.meta.url),delay=ms=>new Promise(r=>setTimeout(r,ms));
 const uid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),company=uid(1),branch=uid(2),member=uid(3);
-let role='owner',empty=false,denied=false,calls=[];
+let role='owner',empty=false,denied=false,calls=[],receipts=[],receiptIndex=50;
 const allOrders=['pending','assigned','collected','received'].map((status,i)=>({id:uid(10+i),company_id:company,branch_id:branch,customer_id:uid(5),assignee_id:member,status,version:1,volumes:2,pickup_address:'Rua sintética '+i,destination:'Destino de teste'}));
 const files=new Map([['/operacao/','operation/index.html'],['/manifest.webmanifest','pwa/manifest.webmanifest'],['/operacao/sw.js','pwa/sw.js'],['/vendor/jspdf.umd.min.js','node_modules/jspdf/dist/jspdf.umd.min.js']]);
 for(const directory of ['operation','app','pwa'])for(const name of fs.readdirSync(new URL(directory+'/',repo)))if(/\.(mjs|css|png)$/.test(name))files.set('/'+directory+'/'+name,directory+'/'+name);
 const server=http.createServer(async(req,res)=>{
   const pathname=new URL(req.url,'http://localhost').pathname;
   if(pathname.startsWith('/api/')){
-    let input={};for await(const chunk of req){input=JSON.parse(chunk.toString());}calls.push({path:pathname,action:input.action});
+    let input={};for await(const chunk of req){input=JSON.parse(chunk.toString());}calls.push({path:pathname,action:input.action,input});
     const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
     if(pathname==='/api/status')return json(200,{configured:true,mode:'homologation'});
     if(pathname==='/api/workspace')return json(200,{user:{email:'synthetic@example.invalid'},companies:[{id:company,name:'Transportadora sintética',active:true}],memberships:role==='none'?[]:[{id:member,company_id:company,role,active:true}],branches:[{id:branch,company_id:company,name:'Matriz',active:true}],customers:[{id:uid(5),company_id:company,branch_id:null,name:'Cliente sintético',active:true}],vehicles:[],limit:500});
     if(pathname==='/api/customers')return json(503,{code:'customer_schema_pending',error:'Synthetic schema pending'});
+    if(pathname==='/api/cargos'){
+      if(input.action==='create_direct'){const c={id:uid(receiptIndex++),company_id:company,branch_id:input.branch_id,customer_id:input.customer_id,destination:input.destination,volumes:input.volumes,origin:'direct',order_id:null,status:'received',version:1,nf_reference:null,cte_reference:null};receipts.push(c);return json(200,{result:{id:c.id}});}
+      if(input.action==='list')return denied?json(403,{error:'Synthetic denied'}):json(200,{result:receipts});
+      const c=receipts.find(r=>r.id===input.id);if(!c)return json(403,{error:'Synthetic cargo missing'});
+      if(input.action==='references'){c.nf_reference=input.nf_reference;c.cte_reference=input.cte_reference;c.version++;return json(200,{result:{id:c.id}});}
+      if(input.action==='detail')return json(200,{result:{cargo:c,events:[{action:'receive_direct',note:'Synthetic arrival',actor_id:uid(1),at:new Date().toISOString()}]}});
+    }
+    if(pathname==='/api/portal'&&input.action==='manage')return json(200,{result:{grants:[],invites:[]}});
     if(!['list','incoming'].includes(input.action))return json(400,{error:'Writes prohibited in browser harness'});
     if(pathname==='/api/collections')return denied?json(403,{error:'Synthetic denied'}):json(200,{result:{orders:empty?[]:allOrders,cargos:empty?[]:[{company_id:company,branch_id:branch,order_id:uid(13),status:'received'}],events:[],workers:[]}});
     if(pathname==='/api/team')return json(200,{result:input.action==='incoming'?[]:{members:[],invites:[]}});
@@ -45,7 +53,7 @@ try{
   for(const width of [1440,390]){
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===390});
     for(const currentRole of ['owner','administrative','driver','collector','client','none']){
-      role=currentRole;empty=false;denied=false;calls=[];
+      role=currentRole;empty=false;denied=false;calls=[];receipts=[{id:uid(90),company_id:company,branch_id:branch,customer_id:uid(5),destination:'Synthetic collected cargo',volumes:2,origin:'collection',order_id:uid(13),status:'received',version:1,nf_reference:null,cte_reference:null}];
       await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/operacao/?role='+role});
       const first=role==='client'?'relations':['driver','collector'].includes(role)?'collections':'overview';
       await waitFor('document.querySelector("[data-operation-tab][aria-current=page]")?.dataset.operationTab==='+JSON.stringify(first));
@@ -67,7 +75,21 @@ try{
         assert.equal(await evaluate('document.querySelectorAll("[data-order-card]").length'),1);
         await tab('administrative');await evaluate('document.querySelector("[data-admin-go=customers]").click()');
         assert.equal(await evaluate('document.querySelector("[data-admin-view=customers]").hidden'),false);
+        await tab('cargos');await evaluate('document.querySelector("[data-freight-open]").click()');await waitFor('document.querySelector("[data-freight-action=references]")');
+        await waitFor('document.querySelector("[data-freight-relations]")?.textContent.includes("Convidar contato")');
+        assert(calls.some(c=>c.path==='/api/documents'&&c.action==='list'&&c.input.order_id===uid(13)));
+        await evaluate('document.querySelector("[data-freight-back]").click()');await waitFor('document.querySelector("[data-freight-open]")');
+        await tab('receiving');
+        await evaluate('(()=>{const f=document.querySelector("[data-direct-receipt]");f.closest("details").open=true;for(const [name,value] of Object.entries({volumes:"2",destination:"Synthetic counter cargo",note:"Synthetic arrival"}))f.elements[name].value=value;f.requestSubmit();f.requestSubmit();})()');
+        await waitFor('document.querySelector("[data-operation-tab=cargos]").getAttribute("aria-current")==="page"&&document.querySelector("[data-freight-action=references]")');
+        assert.equal(calls.filter(c=>c.path==='/api/cargos'&&c.action==='create_direct').length,1);
+        assert.equal(await evaluate('document.querySelector("[data-operation-panel=cargos]").textContent.includes("Chegada direta")'),true);
+        await evaluate('(()=>{const f=document.querySelector("[data-freight-action=references]");f.elements.nf_reference.value="NF-SYNTHETIC";f.elements.cte_reference.value="CTE-SYNTHETIC";f.elements.note.value="Synthetic later references";f.requestSubmit();})()');
+        await waitFor('document.querySelector("[data-freight-action=references]")?.dataset.version==="2"');
+        await evaluate('document.querySelector("[data-freight-back]").click()');
+        await waitFor('document.querySelector("[data-freight-open]")');
         await tab('relations');await tab('chat');
+
       }else if(['driver','collector'].includes(role)){
         await waitFor('document.querySelector("[data-collection-open]")');await evaluate('document.querySelector("[data-collection-open]").click()');await waitFor('document.querySelector("[data-collection-back]")');
         assert.equal(await evaluate('!!document.querySelector("[data-operation-tab=administrative]")'),false);
@@ -89,5 +111,5 @@ try{
       assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);console.log('PASS browser '+width+'px '+state);
     }
   }
-  assert.deepEqual(errors,[]);console.log('PASS no JavaScript exceptions; synthetic HTTP only, no Supabase/Meta or writes.');
+  assert.deepEqual(errors,[]);console.log('PASS no JavaScript exceptions; synthetic HTTP only; fixture mutations only, no Supabase/Meta.');
 }finally{ws?.close();chrome.kill();await new Promise(r=>server.close(r));}

@@ -15,6 +15,7 @@ export async function handleCollaboration(req,res,{path,client,body,json,text,UU
   if(req.method!=='POST'||!['/api/portal','/api/chat','/api/documents'].includes(path))return false;
   const input=await body(req,path==='/api/documents'?8*1024*1024:16384);
   const id=(value)=>{if(!UUID.test(value))throw Error('validation');return value;};
+  const resource=()=>{if(input.order_id&&input.cargo_id)throw Error('validation');return input.cargo_id?{cargo_id:id(input.cargo_id)}:{order_id:id(input.order_id)};};
   const company=input.action==='incoming'&&path==='/api/portal'?null:id(input.company_id);
   const invoke=async(name,action,payload)=>{
     const {data,error}=await client.rpc(name,{p_company:company,p_action:action,p_payload:payload});
@@ -23,7 +24,7 @@ export async function handleCollaboration(req,res,{path,client,body,json,text,UU
   if(path==='/api/portal'){
     if(!['incoming','list','manage','invite','accept','revoke_invite','revoke'].includes(input.action))throw Error('validation');
     const payload={};
-    if(['manage','invite','revoke_invite','revoke'].includes(input.action))payload.order_id=id(input.order_id);
+    if(['manage','invite','revoke_invite','revoke'].includes(input.action))Object.assign(payload,resource());
     if(['accept','revoke_invite'].includes(input.action))payload.id=id(input.id);
     if(input.action==='invite')payload.email=text(input.email,3,254);
     if(input.action==='revoke')payload.membership_id=id(input.membership_id);
@@ -37,7 +38,7 @@ export async function handleCollaboration(req,res,{path,client,body,json,text,UU
     try{json(res,200,{result:await invoke('log_chat',input.action,payload)});}catch{json(res,403,{error:'Conversa recusada. Confira empresa, filial e participantes ativos.'});}return true;
   }
   if(!['list','upload','download','share','unshare','revoke'].includes(input.action))throw Error('validation');
-  const payload=input.action==='download'?{id:id(input.id)}:{order_id:id(input.order_id)};
+  const payload=input.action==='download'?{id:id(input.id)}:resource();
   if(['share','unshare','revoke'].includes(input.action))payload.id=id(input.id);
   if(['share','unshare'].includes(input.action))payload.membership_id=id(input.membership_id);
   try{

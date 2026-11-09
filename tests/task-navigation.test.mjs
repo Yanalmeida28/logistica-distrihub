@@ -10,7 +10,7 @@ test('menus prioritize tasks by role; operational routes reuse one collections p
   for(const role of ['owner','administrative'])assert.deepEqual(operationTabs(role,true).map(([,label])=>label),['Hoje','Coletas','Recebimento','Cargas','Pendências','Gestão','Portal e documentos','Chat da central']);
   for(const role of ['driver','collector'])assert.deepEqual(operationTabs(role,true)[0],['collections','Minhas coletas']);
   assert.deepEqual(operationTabs('client',true)[0],['relations','Minhas cargas']);
-  for(const task of ['collections','receiving','cargos','pending'])assert.equal(operationPanelId(task),'collections');
+  for(const task of ['collections','receiving','pending'])assert.equal(operationPanelId(task),'collections');
 });
 test('task queues use confirmed stages and matching company/cargo; no invented pendencies',()=>{
   const ids=task=>taskRows(data,'a',task,{role:'owner'}).map(o=>o.id);

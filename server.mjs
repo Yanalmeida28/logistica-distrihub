@@ -30,6 +30,7 @@ const files = new Map([
   ['/operation/navigation.mjs', ['operation/navigation.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/main.mjs', ['operation/main.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/team.mjs', ['operation/team.mjs', 'text/javascript; charset=utf-8']],
+  ['/operation/freight.mjs', ['operation/freight.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/task-data.mjs', ['operation/task-data.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/collections.mjs', ['operation/collections.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/relations.mjs', ['operation/relations.mjs', 'text/javascript; charset=utf-8']],

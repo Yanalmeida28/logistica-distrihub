@@ -110,6 +110,25 @@ export function createApi({config=databaseConfig(),clientFactory=createClient,cl
         if(error){json(res,403,{error:'Empresa não criada. Exige identidade verificada e permite uma empresa própria por usuário.'});return true;}
         json(res,201,{id:data});return true;
       }
+      if(path==='/api/cargos'&&req.method==='POST'){
+        const input=await body(req);
+        if(!UUID.test(input.company_id)||!['list','detail','create_direct','references','advance'].includes(input.action))throw Error('validation');
+        const payload={};
+        if(input.action==='create_direct'){
+          for(const key of ['branch_id','customer_id']){if(!UUID.test(input[key]))throw Error('validation');payload[key]=input[key];}
+          payload.destination=text(input.destination,3,300);payload.volumes=Number(input.volumes);
+          if(!Number.isInteger(payload.volumes)||payload.volumes<1||payload.volumes>100000)throw Error('validation');
+        }else if(input.action!=='list'){if(!UUID.test(input.id))throw Error('validation');payload.id=input.id;}
+        if(['create_direct','references'].includes(input.action))for(const key of ['nf_reference','cte_reference'])payload[key]=input[key]==null||input[key]===''?null:text(input[key],1,80);
+        if(!['list','detail'].includes(input.action)){
+          if(!UUID.test(input.request_id))throw Error('validation');payload.request_id=input.request_id;payload.note=text(input.note,3,500);
+          if(input.action!=='create_direct'){if(!Number.isInteger(input.expected_version)||input.expected_version<1)throw Error('validation');payload.expected_version=input.expected_version;}
+          if(input.action==='advance'){if(!['shipped','destination','out_for_delivery','delivered'].includes(input.next_status))throw Error('validation');payload.next_status=input.next_status;}
+        }
+        const {data,error}=await session.client.rpc('log_cargos_workspace',{p_company:input.company_id,p_action:input.action,p_payload:payload});
+        if(error){json(res,403,{error:'Carga indisponivel ou operacao recusada. Confira empresa, filial, permissao, versao e migration de recebimento.'});return true;}
+        json(res,200,{result:data});return true;
+      }
       if(path==='/api/customers'&&req.method==='POST'){
         const input=await body(req);
         if(!UUID.test(input.company_id)||!['list','create','update'].includes(input.action))throw Error('validation');

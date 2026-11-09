@@ -40,11 +40,12 @@ export function reconcileCollectionView(root,markup){
   const template=root.ownerDocument.createElement('template');template.innerHTML=markup;
   const oldTools=root.querySelector('[data-collection-tools]'),newTools=template.content.querySelector('[data-collection-tools]');
   if(oldTools&&newTools){oldTools.hidden=newTools.hidden;newTools.replaceWith(oldTools);}
-  const forms=Array.from(root.querySelectorAll('form[data-collection]'));
+  const forms=Array.from(root.querySelectorAll('form[data-collection],form[data-direct-receipt]'));
   for(const fresh of template.content.querySelectorAll('form[data-collection]')){
-    const old=forms.find(form=>form.dataset.collection===fresh.dataset.collection&&form.dataset.order===fresh.dataset.order&&form.dataset.version===fresh.dataset.version);
+    const old=forms.find(form=>form.dataset.collection===fresh.dataset.collection&&form.hasAttribute('data-direct-receipt')===fresh.hasAttribute('data-direct-receipt')&&form.dataset.order===fresh.dataset.order&&form.dataset.version===fresh.dataset.version);
     if(old)fresh.replaceWith(old);
   }
+  const oldDirect=root.querySelector('[data-direct-path]'),newDirect=template.content.querySelector('[data-direct-path]');if(oldDirect&&newDirect)newDirect.open=oldDirect.open;
   const openOrders=new Set(Array.from(root.querySelectorAll('[data-order-card] details[open]')).map(detail=>detail.closest('[data-order-card]').dataset.orderCard));
   for(const detail of template.content.querySelectorAll('[data-order-card] details'))if(openOrders.has(detail.closest('[data-order-card]').dataset.orderCard))detail.open=true;
   root.replaceChildren(template.content);
