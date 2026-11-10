@@ -10,11 +10,11 @@ test('menus prioritize tasks by role; operational routes reuse one collections p
   for(const role of ['owner','administrative'])assert.deepEqual(operationTabs(role,true).map(([,label])=>label),['Hoje','Coletas','Recebimento','Cargas','Pendências','Gestão','Portal e documentos','Chat da central']);
   for(const role of ['driver','collector'])assert.deepEqual(operationTabs(role,true)[0],['collections','Minhas coletas']);
   assert.deepEqual(operationTabs('client',true)[0],['relations','Minhas cargas']);
-  for(const task of ['collections','receiving','pending'])assert.equal(operationPanelId(task),'collections');
+  for(const task of ['collections','receiving'])assert.equal(operationPanelId(task),'collections');
 });
 test('task queues use confirmed stages and matching company/cargo; no invented pendencies',()=>{
   const ids=task=>taskRows(data,'a',task,{role:'owner'}).map(o=>o.id);
-  assert.deepEqual(ids('collections'),['new','own']);assert.deepEqual(ids('receiving'),['confirmed']);assert.deepEqual(ids('cargos'),['cargo']);assert.deepEqual(ids('pending'),['new','confirmed']);
+  assert.deepEqual(ids('collections'),['new','own']);assert.deepEqual(ids('receiving'),['confirmed']);assert.deepEqual(ids('cargos'),['cargo']);assert.deepEqual(ids('pending'),[]);assert.equal(operationPanelId('pending'),'pending');
   assert.equal(taskRows(data,'a','cargos',{role:'administrative'})[0].status,'shipped');
   assert.deepEqual(taskRows(data,'a','receiving',{role:'driver',id:'worker'}),[]);
   assert.deepEqual(taskRows(data,'a','collections',{role:'client'}),[]);
@@ -27,6 +27,6 @@ test('record deep link and return keep list filters; task switching does not que
   assert(root.innerHTML.includes('data-collection-back'));assert(root.innerHTML.includes('data-order-card="confirmed"'));assert(!root.innerHTML.includes('data-order-card="new"'));
   root.events.click({target:{closest:selector=>selector==='[data-collection-back]'?{}:null}});await new Promise(setImmediate);
   assert(!root.innerHTML.includes('data-collection-back'));assert(root.innerHTML.includes('data-order-card="confirmed"'));
-  await controller.setTask('cargos');assert(root.innerHTML.includes('data-order-card="cargo"'));assert(!root.innerHTML.includes('data-collection="receive"'));
+  assert.equal(await controller.setTask('cargos'),false);assert(!root.innerHTML.includes('data-collection="advance"'));
   await controller.setTask('receiving',{orderId:'outside-window'});assert(root.innerHTML.includes('Registro fora deste recorte ou sem acesso'));assert.deepEqual(calls,[{path:'collections',action:'list'},{path:'pickup-addresses',action:'list'}]);
 });

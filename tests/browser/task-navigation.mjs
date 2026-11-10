@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 const repo=new URL('../../',import.meta.url),delay=ms=>new Promise(r=>setTimeout(r,ms));
 const uid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),company=uid(1),branch=uid(2),member=uid(3);
 let role='owner',empty=false,denied=false,calls=[],receipts=[],receiptIndex=50;
-let pickupRows=[];
+let pickupRows=[],issues=[];
 const allOrders=['pending','assigned','collected','received'].map((status,i)=>({id:uid(10+i),company_id:company,branch_id:branch,customer_id:uid(5),assignee_id:member,status,version:1,volumes:2,pickup_address:'Rua sintética '+i,destination:'Destino de teste'}));
 const files=new Map([['/operacao/','operation/index.html'],['/manifest.webmanifest','pwa/manifest.webmanifest'],['/operacao/sw.js','pwa/sw.js'],['/vendor/jspdf.umd.min.js','node_modules/jspdf/dist/jspdf.umd.min.js']]);
 for(const directory of ['operation','app','pwa'])for(const name of fs.readdirSync(new URL(directory+'/',repo)))if(/\.(mjs|css|png)$/.test(name))files.set('/'+directory+'/'+name,directory+'/'+name);
@@ -25,6 +25,19 @@ const server=http.createServer(async(req,res)=>{
       return json(200,{records:pickupRows});
     }
     if(pathname==='/api/collections'&&input.action==='create')return json(200,{result:{id:uid(70)}});
+    if(pathname==='/api/freight'){
+      if(denied)return json(403,{error:'Synthetic denied'});
+      const rows=empty?[]:receipts.filter(c=>!input.term||[c.id,c.nf_reference,c.cte_reference,'Synthetic customer'].join(' ').toLowerCase().includes(input.term.toLowerCase()));
+      if(input.action==='search')return json(200,{result:{rows,total:rows.length,page:input.page,pages:1}});
+      const c=receipts.find(c=>c.id===input.id);return c?json(200,{result:{cargo:c,events:[{id:1,source:c.order_id?'collection':'cargo',action:c.order_id?'receive':'receive_direct',note:'Synthetic arrival',actor_id:uid(1),at:new Date().toISOString()}]}}):json(403,{error:'Denied'});
+    }
+    if(pathname==='/api/cargo-issues'){
+      if(denied)return json(403,{error:'Synthetic denied'});
+      if(input.action==='create'){const issue={id:uid(300+issues.length),cargo_id:input.cargo_id,kind:input.kind,reason:input.note,status:'open',version:1};issues.push(issue);return json(200,{result:issue});}
+      if(input.action==='resolve'){const i=issues.find(i=>i.id===input.id);i.status='resolved';i.version++;return json(200,{result:i});}
+      if(input.action==='detail')return json(200,{result:{issues:issues.filter(i=>i.cargo_id===input.cargo_id),events:[]}});
+      const rows=empty?[]:receipts.filter(c=>!c.nf_reference||!c.cte_reference).map(c=>({id:'documentation:'+c.id,cargo_id:c.id,kind:'documentation',reason:'Missing NF/CTe',status:'open',next_action:'Complete references'}));rows.push(...issues.filter(i=>i.status==='open'));return json(200,{result:{rows,total:rows.length,page:1,pages:1}});
+    }
     if(pathname==='/api/cargos'){
       if(input.action==='create_direct'){const c={id:uid(receiptIndex++),company_id:company,branch_id:input.branch_id,customer_id:input.customer_id,destination:input.destination,volumes:input.volumes,origin:'direct',order_id:null,status:'received',version:1,nf_reference:null,cte_reference:null};receipts.push(c);return json(200,{result:{id:c.id}});}
       if(input.action==='list')return denied?json(403,{error:'Synthetic denied'}):json(200,{result:receipts});
@@ -61,7 +74,7 @@ try{
   for(const width of [1440,390]){
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===390});
     for(const currentRole of ['owner','administrative','manager','driver','collector','client','none']){
-      role=currentRole;empty=false;denied=false;calls=[];receipts=[{id:uid(90),company_id:company,branch_id:branch,customer_id:uid(5),destination:'Synthetic collected cargo',volumes:2,origin:'collection',order_id:uid(13),status:'received',version:1,nf_reference:null,cte_reference:null}];
+      role=currentRole;empty=false;denied=false;calls=[];issues=[];receipts=[{id:uid(90),company_id:company,branch_id:branch,customer_id:uid(5),destination:'Synthetic collected cargo',volumes:2,origin:'collection',order_id:uid(13),status:'received',version:1,nf_reference:null,cte_reference:null}];
       pickupRows=[{id:uid(60),company_id:company,branch_id:branch,customer_id:uid(5),label:'Loja',address:'Rua sintética 100',active:true},{id:uid(61),company_id:company,branch_id:branch,customer_id:uid(5),label:'Depósito',address:'Galpão sintético 200',active:true}];
       await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/operacao/?role='+role});
       const first=role==='client'?'relations':['driver','collector'].includes(role)?'collections':'overview';
@@ -134,6 +147,22 @@ try{
 
         await evaluate('document.querySelector("[data-freight-back]").click()');
         await waitFor('document.querySelector("[data-freight-open]")');
+        await evaluate('(()=>{const f=document.querySelector("[data-freight-filters]");f.elements.term.value="NF-SYNTHETIC";f.requestSubmit();})()');
+        await waitFor('document.querySelectorAll("[data-freight-open]").length===1');
+        await evaluate('document.querySelector("[data-freight-open]").click()');
+        await waitFor('document.querySelector("[data-issue-create]")');
+        await evaluate('(()=>{const f=document.querySelector("[data-issue-create]");f.closest("details").open=true;f.elements.note.value="Synthetic damage";f.requestSubmit();f.requestSubmit();})()');
+        await waitFor('document.querySelector("[data-issue-resolve]")');assert.equal(issues.length,1);
+        await evaluate('(()=>{const f=document.querySelector("[data-issue-resolve]");f.elements.note.value="Synthetic resolution";f.requestSubmit();})()');
+        await waitFor('document.querySelector("[data-cargo-issues]")?.textContent.includes("Resolvida")');
+        assert.equal(receipts.find(c=>c.id===directId).status,'delivered');
+        await evaluate('document.querySelector("[data-freight-back]").click()');
+        await waitFor('document.querySelector("[data-freight-search]")');
+        assert.equal(await evaluate('document.querySelector("[data-freight-search]").value'),'NF-SYNTHETIC');
+        await tab('pending');await waitFor('document.querySelector("[data-pending-cargo]")');
+        await evaluate('document.querySelector("[data-pending-cargo]").click()');
+        await waitFor('document.querySelector("[data-operation-tab=cargos]").getAttribute("aria-current")==="page"&&document.querySelector("[data-freight-action=references]")');
+        assert.equal(await evaluate('document.querySelector("[data-freight-action=references]").elements.nf_reference.value'),'');
         await tab('relations');await tab('chat');
 
       }else if(['driver','collector'].includes(role)){

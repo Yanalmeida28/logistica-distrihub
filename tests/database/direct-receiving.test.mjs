@@ -17,7 +17,7 @@ test('direct receiving, legacy migration, cargo sheet and resource isolation in 
    grant usage on schema auth to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;`);
   const migrations=(await fs.readdir(new URL('../../supabase/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')&&!f.endsWith('_logistics_private_storage.sql')).sort();
   const newMigration=migrations.find(f=>f.endsWith('_logistics_direct_receiving.sql'));
-  for(const f of migrations.filter(f=>f!==newMigration))await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
+  for(const f of migrations.filter(f=>f<newMigration))await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
   for(let n=1;n<=7;n++)await q('insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())',[uid(n),'synthetic'+n+'@example.invalid']);
   await as(1);const company=(await q("select public.log_create_company('Synthetic A','Main') id"))[0].id;
   const branch=(await q('select id from public.log_branches'))[0].id;
@@ -37,6 +37,7 @@ test('direct receiving, legacy migration, cargo sheet and resource isolation in 
   await as(1);const legacy=await rpc('log_collections',company,'receive',command({id:os.id,expected_version:os.version}));
   const before=(await q('select * from public.log_cargos where id=$1',[legacy.cargo_id]))[0];
   await db.exec('reset role');await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+newMigration,import.meta.url),'utf8'));
+  for(const f of migrations.filter(f=>f>newMigration))await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
   let direct,request;
   await t.test('old cargo retains UUID, physical stage, timestamps, OS and historical events',async()=>{
    await as(1);const sheet=await rpc('log_cargos_workspace',company,'detail',{id:legacy.cargo_id});
@@ -53,24 +54,40 @@ test('direct receiving, legacy migration, cargo sheet and resource isolation in 
    await assert.rejects(rpc('log_cargos_workspace',company,'create_direct',{...request,volumes:5}));
   });
   await t.test('server search includes older than 100, literal NF/CTe, customer and stable pages',async()=>{
-   await as(1);
+   await as(1);const target=await rpc('log_cargos_workspace',company,'create_direct',command({branch_id:branch,customer_id:customer,destination:'Old search target',volumes:1,nf_reference:'OLD-NF-%',cte_reference:'OLD-CTE'}));
    for(let n=0;n<105;n++)await rpc('log_cargos_workspace',company,'create_direct',command({branch_id:branch,customer_id:customer,destination:'Recent synthetic '+n,volumes:1}));
-   await rpc('log_cargos_workspace',company,'references',command({id:direct.id,expected_version:1,nf_reference:'OLD-NF-%',cte_reference:'OLD-CTE'}));
    const search=payload=>rpc('log_freight_read',company,'search',payload);
-   for(const term of ['OLD-NF-%','OLD-CTE',direct.id])assert.equal((await search({term})).rows[0].id,direct.id);
-   assert.equal((await search({term:'Shared customer'})).total,107);
+   for(const term of ['OLD-NF-%','OLD-CTE',target.id])assert.equal((await search({term})).rows[0].id,target.id);
+   assert.equal((await search({term:'Shared customer'})).total,108);
    const first=await search({page:1}),second=await search({page:2});assert.equal(first.rows.length,20);assert(!second.rows.some(c=>first.rows.some(x=>x.id===c.id)));
    assert.deepEqual(await search({page:1}),first);
    for(const payload of [{page:0},{page_size:51},{status:'invented'},{term:'a'.repeat(121)}])await assert.rejects(search(payload));
    const detail=await rpc('log_freight_read',company,'detail',{id:legacy.cargo_id});
    assert(detail.events.some(e=>e.source==='collection'&&e.action==='collect'));assert.equal(detail.events.filter(e=>e.action==='receive').length,1);
    assert(detail.events.every(e=>e.actor_id&&e.at));
-   for(const n of [2,3,5]){await as(n);await assert.rejects(rpc('log_freight_read',company,'detail',{id:direct.id}));}
-   await as(5);assert.equal((await search({term:direct.id})).total,0);
+   for(const n of [2,3,5]){await as(n);await assert.rejects(rpc('log_freight_read',company,'detail',{id:target.id}));}
+   await as(5);assert.equal((await search({term:target.id})).total,0);
    await as(null,'anon');await assert.rejects(search({}));
-   await as(1);await rpc('log_cargos_workspace',company,'references',command({id:direct.id,expected_version:2,nf_reference:null,cte_reference:null}));
-   // Restore the version solely in the fixture so the existing independent journey retains its original expectations.
-   await db.exec('reset role');await q('update public.log_cargos set version=1 where id=$1',[direct.id]);await as(1);
+   await as(1);
+  });
+  await t.test('issues are isolated, idempotent, audited and never move the physical stage',async()=>{
+   await as(1);const call=(action,payload)=>rpc('log_cargo_issues',company,action,payload);
+   const payload=command({cargo_id:direct.id,kind:'volume',observed_volumes:3,responsibility:'self'});
+   const issue=await call('create',payload);assert.deepEqual(await call('create',payload),issue);assert.equal(issue.expected_volumes,4);assert.equal(issue.responsible_id,uid(1));
+   await assert.rejects(call('create',{...payload,note:'Changed retry'}));
+   await assert.rejects(call('create',command({cargo_id:direct.id,kind:'volume',observed_volumes:4,responsibility:'central'})));
+   const data=await call('detail',{cargo_id:direct.id});assert.equal(data.issues.length,1);assert.equal(data.events.length,1);assert.equal(data.events[0].actor_id,uid(1));
+   const queue=await call('queue',{});assert.equal(queue.rows.filter(i=>i.id==='documentation:'+direct.id).length,1);
+   assert.equal((await rpc('log_freight_read',company,'detail',{id:direct.id})).cargo.status,'received');
+   for(const n of [2,3,5]){await as(n);await assert.rejects(call('resolve',command({id:issue.id,expected_version:1})));await assert.rejects(call('detail',{cargo_id:direct.id}));}
+   await as(5);assert(!(await call('queue',{})).rows.some(i=>i.cargo_id===direct.id));
+   await as(1);const resolution=command({id:issue.id,expected_version:1});assert.equal((await call('resolve',resolution)).status,'resolved');assert.equal((await call('detail',{cargo_id:direct.id})).events.length,2);assert.deepEqual(await call('resolve',resolution),await call('resolve',resolution));
+   await assert.rejects(q('select * from public.log_cargo_issues'));await assert.rejects(q('select * from public.log_cargo_issue_events'));
+   assert.equal((await q("select has_function_privilege('anon','public.log_cargo_issues(uuid,text,jsonb)','execute') allowed"))[0].allowed,false);
+   await db.exec('reset role');await db.exec("create function public.synthetic_issue_failure() returns trigger language plpgsql as $$begin raise exception 'Injected issue event failure';end$$;create trigger synthetic_issue_failure before insert on public.log_cargo_issue_events for each row execute function public.synthetic_issue_failure();");
+   const failed=command({cargo_id:direct.id,kind:'damage',responsibility:'central'});await as(1);await assert.rejects(call('create',failed));
+   await db.exec('reset role');assert.equal((await q('select count(*)::int n from public.log_cargo_issue_commands where request_id=$1',[failed.request_id]))[0].n,0);
+   await db.exec('drop trigger synthetic_issue_failure on public.log_cargo_issue_events;drop function public.synthetic_issue_failure();');await as(1);assert.equal((await call('detail',{cargo_id:direct.id})).issues.length,1);
   });
   await t.test('tenant, branch, customer, role and anonymous access are enforced',async()=>{
    for(const n of [2,3,5]){await as(n);await assert.rejects(rpc('log_cargos_workspace',company,'detail',{id:direct.id}));await assert.rejects(rpc('log_cargos_workspace',company,'create_direct',command({...request,request_id:randomUUID()})));}
@@ -82,6 +99,7 @@ test('direct receiving, legacy migration, cargo sheet and resource isolation in 
   await t.test('later NF/CTe references and physical stages are independent and version guarded',async()=>{
    await as(1);const linked=await rpc('log_cargos_workspace',company,'references',command({id:direct.id,expected_version:1,nf_reference:'NF-SYNTHETIC',cte_reference:'CTE-SYNTHETIC'}));
    let sheet=await rpc('log_cargos_workspace',company,'detail',{id:direct.id});assert.equal(sheet.cargo.status,'received');assert.equal(sheet.cargo.nf_reference,'NF-SYNTHETIC');assert.equal(sheet.events.at(-1).action,'references');
+   assert(!(await rpc('log_cargo_issues',company,'queue',{})).rows.some(i=>i.id==='documentation:'+direct.id));
    await assert.rejects(rpc('log_cargos_workspace',company,'advance',command({id:direct.id,expected_version:linked.version,next_status:'delivered'})));
    let version=linked.version;for(const next_status of ['shipped','destination','out_for_delivery','delivered'])version=(await rpc('log_cargos_workspace',company,'advance',command({id:direct.id,expected_version:version,next_status}))).version;
    sheet=await rpc('log_cargos_workspace',company,'detail',{id:direct.id});assert.equal(sheet.cargo.status,'delivered');assert.equal(sheet.events.filter(e=>e.action==='collect').length,0);

@@ -1,3 +1,4 @@
+import {mountPending,mountIssuePriorities} from './pending.mjs';
 import {mountFreight} from './freight.mjs';
 import {mountAdministrativeArea} from './admin-area.mjs';
 import {mountCustomers} from './customers.mjs';
@@ -45,7 +46,8 @@ function render(){
   root.insertAdjacentHTML('beforeend',managementMarkup({workspace,companyId,membership,mode}));
   const teamRoot=document.createElement('div');teamRoot.dataset.operationPanel='team';root.append(teamRoot);
   void mountTeam(teamRoot,{request,companyId,owner,branchList:branches,reload,run,notify});
-  let collectionsReady=Promise.resolve(null),freightReady=Promise.resolve(null);
+  let collectionsReady=Promise.resolve(null),freightReady=Promise.resolve(null),pendingReady=Promise.resolve(null),prioritiesReady=Promise.resolve(null);
+  if(admin){const pendingRoot=document.createElement('div');pendingRoot.dataset.operationPanel='pending';root.append(pendingRoot);pendingReady=mountPending(pendingRoot,{request,companyId,branches,onOpenCargo:id=>void navigateTo('cargos',{cargoId:id})});}
   if(admin){const freightRoot=document.createElement('div');freightRoot.dataset.operationPanel='cargos';root.append(freightRoot);freightReady=mountFreight(freightRoot,{request,companyId,membership,customers:workspace.customers,branches,run,reload,notify});}
   if(['owner','administrative','manager','driver','collector'].includes(membership?.role)){
     const collectionsRoot=document.createElement('div');collectionsRoot.dataset.operationPanel='collections';root.append(collectionsRoot);
@@ -83,6 +85,7 @@ function render(){
     const counts=['branches','customers','vehicles'].map(kind=>workspace[kind].filter(row=>row.company_id===companyId&&row.active).length);
     const max=Math.max(1,...counts);
     metrics.innerHTML=counts.map((count,i)=>'<article><span>'+['Filiais ativas','Clientes ativos','Veículos ativos'][i]+'</span><strong>'+count+'</strong><meter min="0" max="'+max+'" value="'+count+'" aria-label="'+['Filiais','Clientes','Veículos'][i]+'">'+count+'</meter><small>Nos registros carregados</small></article>').join('');overview.append(metrics);
+    if(admin){const priorities=document.createElement('div');overview.append(priorities);prioritiesReady=mountIssuePriorities(priorities,{request,companyId,onOpenCargo:id=>void navigateTo('cargos',{cargoId:id})});}
     const summary=document.createElement('div');overview.insertBefore(summary,metrics);
     void mountOverview(summary,{request,companyId,membership,branchList:branches,onNavigate:(id,options)=>navigateTo(id,options)});
   }
@@ -95,6 +98,8 @@ function render(){
     }
     if(id==='summary')id='overview';
     if(!tabs.some(([key])=>key===id))return;
+    if(id==='overview')await (await prioritiesReady)?.show();
+    if(id==='pending')await (await pendingReady)?.show();
     if(id==='cargos'){const controller=await freightReady;if(!layout.isConnected||!controller)return;if(options.cargoId){if(!await controller.open(options.cargoId))return;}else await controller.show();}
     if(collectionTasks.includes(id)){
       const controller=await collectionsReady;

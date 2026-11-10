@@ -7,6 +7,7 @@ test('cargo commands cannot submit while document permissions are still loading'
  const child={innerHTML:'',isConnected:true,addEventListener(){},querySelector(){return {innerHTML:''};}};
  const root={innerHTML:'',isConnected:true,dataset:{},events:{},querySelector(){return child;},querySelectorAll(){return buttons;},addEventListener(name,fn){this.events[name]=fn;}};
  const request=async(path,input)=>{
+  if(path==='cargo-issues')return {result:{issues:[],events:[]}};
   if(path==='freight')return input.action==='search'?{result:{rows:[],total:0,page:1,pages:1}}:{result:{cargo:{id:'synthetic',origin:'direct',order_id:null,status:'received',version:1,volumes:1},events:[]}};
   if(path==='portal'&&input.action==='incoming')return gate;
   if(path==='portal')return {result:{invites:[],grants:[]}};

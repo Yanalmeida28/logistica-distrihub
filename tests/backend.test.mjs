@@ -4,6 +4,21 @@ import http from 'node:http';
 import {createApi} from '../backend/api.mjs';
 import {databaseConfig} from '../backend/config.mjs';
 const config={enabled:true,url:'http://127.0.0.1:54321',key:'sb_publishable_test_only_not_real'};
+test('freight search and issues require Auth, validate filters and strip forged identity',async()=>{
+ const id='00000000-0000-4000-8000-000000000001';let called;
+ const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {data:{}};}};
+ await server(createApi({config,clientFactory:()=>client}),async base=>{
+  const send=(path,payload,h=headers)=>localFetch(base+'/api/'+path,{method:'POST',headers:h,body:JSON.stringify(payload)});
+  for(const path of ['freight','cargo-issues'])assert.equal((await send(path,{company_id:id,action:'search'})).status,401);
+  const login=await send('login',{email:'test@example.invalid',password:'fake'});const h={...headers,Cookie:login.headers.get('set-cookie').split(';')[0]};
+  assert.equal((await send('freight',{company_id:id,action:'search',term:'NF-123',page:6,actor_id:id,role:'owner'},h)).status,200);
+  assert.equal(called.name,'log_freight_read');assert.deepEqual(called.args.p_payload,{term:'NF-123',page:6,page_size:20});
+  for(const bad of [{page:0},{page:1.5},{status:'fake'},{branch_id:'bad'},{term:'x'.repeat(121)}])assert.equal((await send('freight',{company_id:id,action:'search',...bad},h)).status,400);
+  assert.equal((await send('cargo-issues',{company_id:id,action:'create',cargo_id:id,request_id:id,note:'Synthetic damage',kind:'damage',responsibility:'self',responsible_id:'forged',status:'resolved'},h)).status,200);
+  assert.equal(called.name,'log_cargo_issues');assert(!('responsible_id' in called.args.p_payload));assert(!('status' in called.args.p_payload));
+  assert.equal((await send('cargo-issues',{company_id:id,action:'queue',status:'invented'},h)).status,400);
+ });
+});
 test('direct receipt endpoint authenticates, whitelists payload and accepts missing fiscal references',async()=>{
  const id='00000000-0000-4000-8000-000000000001';let called;
  const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {data:{id}};}};

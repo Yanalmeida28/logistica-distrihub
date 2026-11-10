@@ -31,6 +31,7 @@ const files = new Map([
   ['/operation/navigation.mjs', ['operation/navigation.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/main.mjs', ['operation/main.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/team.mjs', ['operation/team.mjs', 'text/javascript; charset=utf-8']],
+  ['/operation/pending.mjs', ['operation/pending.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/freight.mjs', ['operation/freight.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/freight-search.mjs', ['operation/freight-search.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/task-data.mjs', ['operation/task-data.mjs', 'text/javascript; charset=utf-8']],

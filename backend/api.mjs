@@ -137,6 +137,28 @@ export function createApi({config=databaseConfig(),clientFactory=createClient,cl
         if(error){json(res,403,{error:'Empresa não criada. Exige identidade verificada e permite uma empresa própria por usuário.'});return true;}
         json(res,201,{id:data});return true;
       }
+      if(path==='/api/cargo-issues'&&req.method==='POST'){
+        const input=await body(req),payload={};
+        if(!UUID.test(input.company_id)||!['queue','detail','create','resolve'].includes(input.action))throw Error('validation');
+        if(input.action==='queue'){
+          payload.page=input.page??1;if(!Number.isInteger(payload.page)||payload.page<1||payload.page>1000000)throw Error('validation');
+          payload.status=input.status??'open';if(!['open','resolved','all'].includes(payload.status))throw Error('validation');
+          if(input.branch_id){if(!UUID.test(input.branch_id))throw Error('validation');payload.branch_id=input.branch_id;}
+        }else {
+          const key=input.action==='resolve'?'id':'cargo_id';if(!UUID.test(input[key]))throw Error('validation');payload[key]=input[key];
+          if(input.action!=='detail'){
+            if(!UUID.test(input.request_id))throw Error('validation');payload.request_id=input.request_id;payload.note=text(input.note,3,500);
+            if(input.action==='create'){
+              if(!['damage','volume'].includes(input.kind)||!['self','central'].includes(input.responsibility))throw Error('validation');
+              payload.kind=input.kind;payload.responsibility=input.responsibility;
+              if(input.kind==='volume'){payload.observed_volumes=Number(input.observed_volumes);if(!Number.isInteger(payload.observed_volumes)||payload.observed_volumes<0||payload.observed_volumes>100000)throw Error('validation');}
+            }else {if(!Number.isInteger(input.expected_version)||input.expected_version<1)throw Error('validation');payload.expected_version=input.expected_version;}
+          }
+        }
+        const {data,error}=await session.client.rpc('log_cargo_issues',{p_company:input.company_id,p_action:input.action,p_payload:payload});
+        if(error){json(res,403,{error:'Pendência recusada. Confira acesso, versão e migration de pendências.'});return true;}
+        json(res,200,{result:data});return true;
+      }
       if(path==='/api/freight'&&req.method==='POST'){
         const input=await body(req),payload={};
         if(!UUID.test(input.company_id)||!['search','detail'].includes(input.action))throw Error('validation');

@@ -5,7 +5,6 @@ import {shareCollectionPdf} from './order-pdf.mjs';
 import {updatePickupSelection} from './pickup-addresses.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={create:'OS criada',assign:'Coleta atribuída',release:'Atribuição liberada',accept:'Coleta aceita',start:'Coleta iniciada',collect:'Coleta confirmada no cliente',receive:'Recebimento confirmado na central',pending:'Aguardando atribuição',assigned:'Atribuída',accepted:'Aceita pelo responsável',in_progress:'Coleta em andamento',collected:'Coletada no cliente',received:'Recebida na central',shipped:'Embarque confirmado',destination:'Chegada ao destino confirmada',out_for_delivery:'Saiu para entrega',delivered:'Entrega confirmada'};
-const nextCargo={received:'shipped',shipped:'destination',destination:'out_for_delivery',out_for_delivery:'delivered'};
 const field=(name,label,extra='')=>'<label>'+label+'<input name="'+name+'" required '+extra+'></label>';
 export async function mountCollections(root,{request,companyId,membership,branchList,customers,vehicles,reload,run,notify=()=>{},companyName='Transportadora',onOpenCargo=()=>{}}){
   if(!companyId||!['owner','administrative','manager','driver','collector'].includes(membership?.role)){root.innerHTML='<section class="card"><h2>Sem acesso</h2><p>Seu perfil n\u00e3o tem acesso a esta opera\u00e7\u00e3o.</p></section>';return;}
@@ -46,7 +45,6 @@ export async function mountCollections(root,{request,companyId,membership,branch
         }
         if(admin&&['assigned','accepted'].includes(o.status))actions+=actionForm(o,'release','Liberar atribuição');
         if(admin&&o.status==='collected')actions+=actionForm(o,'receive','Confirmar recebimento na central');
-        if(admin&&cargo&&nextCargo[cargo.status])actions+=actionForm(o,'advance','Confirmar: '+labels[nextCargo[cargo.status]],'<input type="hidden" name="next_status" value="'+nextCargo[cargo.status]+'">');
         return '<article class="card" tabindex="-1" data-order-card="'+esc(o.id)+'"><h3>OS '+esc(o.id.slice(0,8))+'</h3><p><strong>'+esc(labels[cargo?.status??o.status])+'</strong> · versão '+o.version+'</p><p>'+esc(branchList.find(b=>b.id===o.branch_id)?.name??'Filial autorizada')+' · '+o.volumes+' volumes</p><p>Coleta: '+esc(o.pickup_address)+'<br>Destino: '+esc(o.destination)+'</p><p>Responsável: '+esc(worker?.label??(own?'Você':o.assignee_id?'Vinculado à OS':'A definir'))+'</p>'+(admin&&cargo?'<button type="button" class="secondary" data-open-cargo="'+esc(cargo.id)+'">Ficha da carga</button>':'')+(selectedId?'':'<button type="button" class="secondary" data-collection-open="'+esc(o.id)+'">Abrir registro</button>')+'<details '+(selectedId?'open':'')+'><summary>A\u00e7\u00f5es e hist\u00f3rico da OS</summary><button type="button" data-collection-pdf="'+esc(o.id)+'">Compartilhar / baixar PDF da OS</button>'+actions+'<details><summary>Histórico de confirmações</summary>'+data.events.filter(e=>e.order_id===o.id).map(e=>'<p>'+esc(new Date(e.at).toLocaleString('pt-BR'))+' · '+esc(labels[e.action]??e.action)+' · '+esc(e.note)+'<br><small>Autor: '+esc(e.actor_id)+' · versão '+e.version+'</small></p>').join('')+'</details></details></article>';
       }).join('')+(page.total?'':selectedId?'<p role="status">Registro fora deste recorte ou sem acesso. Volte \u00e0 lista e atualize os dados.</p>':'<p role="status">Nenhuma ordem acess\u00edvel nesta etapa e nos filtros atuais, entre as 100 ordens recentes. Voc\u00ea pode atualizar a lista.</p>')+'</section>';
       reconcileCollectionView(root,markup);
@@ -78,7 +76,7 @@ export async function mountCollections(root,{request,companyId,membership,branch
   await load();
   if(globalThis.document){const poll=async()=>{if(!root.isConnected)return;if(!document.hidden&&!root.hidden&&!root.closest('[data-operation-panel]')?.hidden&&!dirty)await load();setTimeout(poll,15000);};setTimeout(poll,15000);}
   return {async setTask(next,{orderId}={}){
-    if(!['collections','receiving','cargos','pending'].includes(next)||(!admin&&next!=='collections'))return false;
+    if(!['collections','receiving'].includes(next)||(!admin&&next!=='collections'))return false;
     if(dirty&&next===task&&(!orderId||orderId===selectedId))return true;
     if(dirty&&(next!==task||orderId!==selectedId)){notify('Finalize a edi\u00e7\u00e3o antes de trocar de tarefa.',{error:true});return false;}
     if(!lastData){task=next;selectedId=orderId??'';return true;}
