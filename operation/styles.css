@@ -43,4 +43,4 @@ body{background:var(--surface)}.operation-header{background:#edf3f7;color:var(--
 #operation button:hover:not(:disabled){border-color:#153b91;background:#1e40af;color:#fff}
 #operation button.primary,#operation button[aria-current=page]{border-color:#1e40af;background:#1d4ed8;color:#fff}
 #operation button.primary:hover:not(:disabled),#operation button[aria-current=page]:hover:not(:disabled){border-color:#153b91;background:#1e40af;color:#fff}
-#operation .operation-panels button:disabled,#operation button:disabled{opacity:1;background:#e2e8f0;color:#334155;border:2px dashed #64748b;box-shadow:none;cursor:not-allowed}
+#operation .operation-panels button:disabled,#operation button:disabled{opacity:1;background:#e2e8f0;color:#334155;border:2px solid #64748b;box-shadow:none;cursor:default}
