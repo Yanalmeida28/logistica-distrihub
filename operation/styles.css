@@ -182,3 +182,53 @@ body.operation-login{background:#f5f8fd;color:#0c1e3d}
 .operation-login .access-help p{font-size:13px;color:#475569}
 .operation-login a:focus-visible,.operation-login summary:focus-visible{outline:3px solid #438bff;outline-offset:4px}
 @media(max-width:760px){.operation-login .access-login{grid-template-columns:1fr;min-height:100vh}.operation-login .access-intro{padding:28px 24px;justify-content:start}.access-wordmark{margin-bottom:12px}.access-wordmark strong{font-size:32px;letter-spacing:-1px}.access-wordmark span{font-size:25px}.operation-login #operation h1{font-size:32px;line-height:1.15;letter-spacing:-.7px;margin:14px 0 10px}.operation-login #operation h1 br{display:none}.operation-login .access-intro>p{font-size:14px}.operation-login .access-illustration{display:none}.operation-login .access-intro>.fine{margin-top:16px;font-size:11px}.operation-login #operation .access-login>.login-card{padding:30px 24px 36px;justify-content:start}.operation-login #operation .login-card h2{font-size:30px}.operation-login .login-card>.eyebrow{font-size:10px}.operation-login .access-help{margin-top:12px}}
+
+/* Fit the initial login in the viewport without clipping help or keyboard access. */
+.operation-login #operation,.operation-login .access-login{min-height:100svh}
+.operation-login .access-intro{padding:clamp(24px,4vw,58px)}
+.operation-login .access-wordmark{margin-bottom:16px}
+.operation-login .access-wordmark strong{font-size:clamp(34px,4vw,54px)}
+.operation-login .access-wordmark span{font-size:clamp(26px,3vw,40px)}
+.operation-login #operation h1{font-size:clamp(32px,3.8vw,52px);margin:12px 0 16px}
+.operation-login .access-illustration{max-height:26svh;min-height:0;margin:20px 0 12px;flex-shrink:1}
+.operation-login #operation .access-login>.login-card{padding:24px clamp(24px,4.5vw,66px)}
+.operation-login #operation .login-card h2{font-size:clamp(28px,3vw,40px);margin-bottom:10px}
+.operation-login .login-card>.eyebrow{margin-bottom:10px}
+.operation-login .login-card>p:not(.eyebrow){margin-bottom:10px}
+.operation-login #operation-login label{margin:12px 0}
+.operation-login #operation-login input{min-height:48px;padding:10px 14px;margin-top:6px}
+.operation-login #operation-login .primary{min-height:48px;margin-top:8px;font-size:17px}
+.operation-login .access-back{min-height:44px;margin:10px 0 0;font-size:15px}
+.operation-login .access-help{margin-top:12px;padding-top:10px}
+.operation-login .access-help summary{min-height:44px;padding:10px 0;line-height:1.5}
+@media(max-width:760px){
+ .operation-login .access-login{grid-template-rows:auto 1fr}
+ .operation-login .access-intro{padding:18px 24px}
+ .operation-login .access-wordmark{margin:0;line-height:1.1}
+ .operation-login .access-wordmark strong{font-size:28px;letter-spacing:-.8px}
+ .operation-login .access-wordmark span{font-size:20px;margin-top:2px}
+ .operation-login #operation .access-intro h1,.operation-login .access-intro>p{display:none}
+ .operation-login #operation .access-login>.login-card{padding:20px 24px;justify-content:center}
+ .operation-login .login-card>.eyebrow{display:none}
+ .operation-login #operation .login-card h2{font-size:28px}
+ .operation-login .login-card>p:not(.eyebrow){font-size:14px}
+ .operation-login .access-help summary{font-size:13px}
+}
+@media(max-height:650px) and (min-width:761px){
+ .operation-login .access-illustration{max-height:20svh;margin:12px 0}
+ .operation-login .access-intro{padding-block:24px}
+ .operation-login .access-wordmark strong{font-size:40px}
+ .operation-login .access-wordmark span{font-size:28px}
+ .operation-login #operation h1{font-size:36px}
+}
+@media(max-width:760px) and (max-height:700px){
+ .operation-login .access-intro{padding:16px 20px}
+ .operation-login .access-wordmark{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+ .operation-login .access-wordmark strong{font-size:26px}
+ .operation-login .access-wordmark span{font-size:19px;margin:0}
+ .operation-login #operation .access-login>.login-card{padding:16px 20px}
+ .operation-login #operation .login-card h2{font-size:25px;margin-bottom:8px}
+ .operation-login .login-card>p:not(.eyebrow){display:none}
+ .operation-login #operation-login label{margin:10px 0}
+ .operation-login .access-help summary{font-size:12px}
+}

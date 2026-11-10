@@ -84,8 +84,8 @@ try{
   const screenshot=async name=>{if(process.env.LOGISTICA_SCREENSHOTS!=='1')return;const {data}=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(new URL('.tmp/layout-'+name+'.png',repo),Buffer.from(data,'base64'));};
   const tab=async id=>{await evaluate('document.querySelector(".operation-sidebar details").open=true');await waitFor('document.querySelector('+JSON.stringify('[data-operation-tab="'+id+'"]:not(:disabled)')+')');await evaluate('document.querySelector('+JSON.stringify('[data-operation-tab="'+id+'"]')+').click()');await waitFor('document.querySelector("[data-operation-tab][aria-current=page]")?.dataset.operationTab==='+JSON.stringify(id));if(['collections','receiving','cargos','pending'].includes(id))await checkButtons(id);if(role==='owner'){await delay(100);await screenshot(id+'-'+await evaluate('innerWidth'));}};
   await send('Runtime.enable');await send('Page.enable');
-  for(const width of [1440,390]){
-    await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===390});
+  for(const [width,height] of [[1440,900],[1366,768],[1280,600],[390,844],[360,640],[320,568]]){
+    await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<=760});
     await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/'});
     await waitFor('document.querySelector(".product-preview")');
     assert.equal(await evaluate('document.querySelector(".header-access").getAttribute("href")'),'/operacao/');
@@ -98,6 +98,8 @@ try{
     assert.equal(await evaluate('document.querySelector("#operation-login").elements.password.value'), '');
     assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Login overflow '+width);
     assert.equal(await evaluate('document.querySelector(".access-back").getAttribute("href")'),'/');
+    assert.equal(await evaluate('document.documentElement.scrollHeight<=innerHeight+1'),true,'Login vertical overflow '+width+'x'+height);
+    assert.equal(await evaluate('document.querySelector("#operation-login button").getBoundingClientRect().bottom<=innerHeight'),true,'Login submit outside viewport');
     await screenshot('login-'+width);
     await evaluate('(()=>{const f=document.querySelector("#operation-login");f.elements.email.value="invalid";f.elements.password.value="synthetic-only";return f.checkValidity()})()').then(valid=>assert.equal(valid,false));
     await evaluate('(()=>{const f=document.querySelector("#operation-login");f.elements.email.value="synthetic@example.invalid";f.requestSubmit()})()');
