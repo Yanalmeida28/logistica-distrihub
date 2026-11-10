@@ -21,6 +21,8 @@ async function request(path,data){
 }
 const field=(name,label,attrs='')=>'<label>'+label+'<input name="'+name+'" required '+attrs+'></label>';
 function render(){
+  document.body.classList.toggle('operation-authenticated',Boolean(configured&&workspace?.companies?.some(c=>c.active)));
+  document.body.classList.toggle('operation-login',Boolean(configured&&!workspace));
   const base='<p class="eyebrow">DISTRIHUB LOGÍSTICA / OPERAÇÃO</p><h1>Sua operação, em um só lugar.</h1>';
   if(!configured){root.innerHTML=base+'<section class="card"><span class="badge">Operação bloqueada</span><h2>Supabase local ainda não configurado</h2><p>Nenhum banco externo é acessado. Esta área exige o projeto local próprio, a migration de fundação e usuários do Auth. Não usa os dados da demonstração nem recursos do DistriHub.</p><p>Consulte docs/BASE_OPERACIONAL.md para preparar o ambiente. Não informe senhas ou chaves no chat.</p><a class="secondary" href="/app/">Continuar na demonstração</a></section>';return;}
   if(!workspace){root.innerHTML=loginScreen();return;}
@@ -64,10 +66,16 @@ function render(){
   const panels=document.createElement('div');panels.className='operation-panels';
   const controls=[];
   for(const node of Array.from(root.children)){
-    if(node.matches('.filters'))controls.push(node);
+    if(node.matches('.filters')){node.classList.add('operation-account');controls.push(node);}
     else if(node.dataset.operationPanel)panels.append(node);else overview.append(node);
   }
   panels.prepend(overview);
+  overview.querySelector(':scope > .eyebrow')?.remove();
+  overview.querySelector(':scope > h1')?.remove();
+  const environment=overview.querySelector(':scope > .tip');
+  if(environment){environment.classList.add('operation-environment');environment.innerHTML='<details><summary>Ambiente de teste · acesso restrito</summary><p>Operação online em ambiente separado. Cotação, faturamento e despesas demonstrativos não estão conectados à operação.</p></details>';}
+  overview.querySelector(':scope > p:not(.fine)')?.remove();
+  overview.querySelector(':scope > .fine')?.remove();
   if(!['owner','administrative','manager','driver','collector','client'].includes(membership?.role))overview.insertAdjacentHTML('beforeend','<section class="card"><h2>Sem acesso operacional</h2><p>Nenhum perfil ativo autorizado nesta transportadora. Consulte seus convites ou solicite a revis\u00e3o do acesso.</p></section>');
   panels.querySelectorAll('[data-operation-panel]').forEach(panel=>{
     panel.id='operation-panel-'+panel.dataset.operationPanel;panel.tabIndex=-1;
@@ -75,7 +83,14 @@ function render(){
   });
   const sidebar=document.createElement('aside');sidebar.className='operation-sidebar';
   sidebar.innerHTML='<details open><summary>Menu de módulos</summary><nav aria-label="Módulos da operação">'+tabs.map(([id,label])=>'<button type="button" data-operation-tab="'+id+'" aria-controls="operation-panel-'+operationPanelId(id)+'">'+label+'</button>').join('')+'</nav></details>';
-  layout.append(sidebar,panels);root.append(...controls,layout);
+  sidebar.insertAdjacentHTML('afterbegin','<a class="operation-wordmark" href="/operacao/"><strong>DistriHub</strong><span>Logística</span></a><p class="operation-role">'+esc(({owner:'Central de operações',administrative:'Administração',manager:'Gerência',driver:'Motorista',collector:'Coletor',client:'Portal do cliente'})[membership?.role]??'Acesso restrito')+'</p>');
+  const icons={overview:'M3 10 12 3l9 7v11h-6v-7H9v7H3Z',collections:'M1 5h14v12H1ZM15 9h4l4 4v4h-8M5 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM19 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',receiving:'m12 2 10 5-10 5L2 7Zm-10 5v10l10 5 10-5V7M12 12v10',cargos:'m12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 16l10 5 10-5',pending:'M12 3 2 21h20ZM12 9v5M12 17v1',administrative:'M4 5h16v16H4ZM8 2v6M16 2v6M4 11h16M9 15h6',relations:'M5 3h10l4 4v14H5ZM14 3v5h5M8 12h8M8 16h8',chat:'M3 3h18v14H9l-6 4Z'};
+  sidebar.querySelectorAll('[data-operation-tab]').forEach(button=>button.insertAdjacentHTML('afterbegin','<svg class="operation-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(icons[button.dataset.operationTab]??'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M8 12h8')+'"/></svg>'));
+  sidebar.querySelector('details').open=window.innerWidth>850;
+  // Keep account and company context available in every operational task.
+  const account=document.createElement('div');account.className='operation-workspace-bar';account.append(...controls);
+  const companyControl=overview.querySelector('#operation-company')?.closest('label');if(companyControl)account.prepend(companyControl);
+  layout.append(sidebar,panels);root.append(account,layout);
   for(const kind of ['branches','vehicles']){
     const container=panels.querySelector('[data-operation-panel="'+kind+'"]');
     if(container){const key=companyId+':'+kind;if(!listStates.has(key))listStates.set(key,{term:'',page:1});mountListTools(container,{state:listStates.get(key),label:kind==='branches'?'filiais':kind==='customers'?'clientes':'veículos'});}
@@ -114,9 +129,10 @@ function render(){
   selectOperationPanel(layout,activeTab);
   if(collectionTasks.includes(activeTab))void collectionsReady.then(controller=>controller?.setTask(activeTab));
   sidebar.addEventListener('click',event=>{
-    const button=event.target.closest('[data-operation-tab]');if(button)void navigateTo(button.dataset.operationTab);
+    const button=event.target.closest('[data-operation-tab]');if(button)void navigateTo(button.dataset.operationTab).then(()=>{if(window.innerWidth<=850)sidebar.querySelector('details').open=false;});
   });
 }
+window.addEventListener('resize',()=>{if(window.innerWidth>850)root.querySelector('.operation-sidebar details')?.setAttribute('open','');});
 async function reload(force=true){const next=await request('workspace');const signature=JSON.stringify(next);workspace=next;if(!force&&signature===workspaceSnapshot)return;workspaceSnapshot=signature;workspaceDirty=false;render();}
 async function run(action){if(busy)return;busy=true;notify('');const locks=new Map(Array.from(root.querySelectorAll('button'),button=>[button,button.disabled]));root.querySelectorAll('button').forEach(b=>b.disabled=true);try{await action();}catch(e){notify(e.name==='TimeoutError'?'Serviço sem resposta. Confira a conexão antes de repetir.':e.message,{error:true});if(!workspace)render();}finally{busy=false;for(const [button,disabled] of locks)if(button.isConnected)button.disabled=disabled;}}
 root.addEventListener('submit',e=>{e.preventDefault();const form=e.target,values=Object.fromEntries(new FormData(form));run(async()=>{

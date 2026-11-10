@@ -6,10 +6,11 @@ import {spawn} from 'node:child_process';
 import assert from 'node:assert/strict';
 const repo=new URL('../../',import.meta.url),delay=ms=>new Promise(r=>setTimeout(r,ms));
 const uid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),company=uid(1),branch=uid(2),member=uid(3);
+let loggedOut=false;
 let role='owner',empty=false,denied=false,calls=[],receipts=[],receiptIndex=50;
 let pickupRows=[],destinationRows=[],issues=[];
 const allOrders=['pending','assigned','collected','received'].map((status,i)=>({id:uid(10+i),company_id:company,branch_id:branch,customer_id:uid(5),assignee_id:member,status,version:1,volumes:2,pickup_address:'Rua sintética '+i,destination:'Destino de teste'}));
-const files=new Map([['/operacao/','operation/index.html'],['/manifest.webmanifest','pwa/manifest.webmanifest'],['/operacao/sw.js','pwa/sw.js'],['/vendor/jspdf.umd.min.js','node_modules/jspdf/dist/jspdf.umd.min.js']]);
+const files=new Map([['/','index.html'],['/styles.css','styles.css'],['/app.js','app.js'],['/operacao/','operation/index.html'],['/manifest.webmanifest','pwa/manifest.webmanifest'],['/operacao/sw.js','pwa/sw.js'],['/vendor/jspdf.umd.min.js','node_modules/jspdf/dist/jspdf.umd.min.js']]);
 for(const directory of ['operation','app','pwa'])for(const name of fs.readdirSync(new URL(directory+'/',repo)))if(/\.(mjs|css|png)$/.test(name))files.set('/'+directory+'/'+name,directory+'/'+name);
 const server=http.createServer(async(req,res)=>{
   const pathname=new URL(req.url,'http://localhost').pathname;
@@ -17,6 +18,8 @@ const server=http.createServer(async(req,res)=>{
     let input={};for await(const chunk of req){input=JSON.parse(chunk.toString());}calls.push({path:pathname,action:input.action,input});
     const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
     if(pathname==='/api/status')return json(200,{configured:true,mode:'homologation'});
+    if(pathname==='/api/login'){loggedOut=false;return json(200,{ok:true});}
+    if(pathname==='/api/workspace'&&loggedOut)return json(401,{error:'Synthetic session absent'});
     if(pathname==='/api/workspace')return json(200,{user:{email:'synthetic@example.invalid'},companies:[{id:company,name:'Transportadora sintética',active:true}],memberships:role==='none'?[]:[{id:member,company_id:company,role,active:true}],branches:[{id:branch,company_id:company,name:'Matriz',active:true}],customers:[{id:uid(5),company_id:company,branch_id:null,name:'Cliente sintético',active:true}],vehicles:[],limit:500});
     if(pathname==='/api/customers')return json(200,{records:[{id:uid(5),company_id:company,branch_id:null,name:'Cliente sintético',active:true}]});
     if(['/api/pickup-addresses','/api/destination-addresses'].includes(pathname)){
@@ -78,8 +81,30 @@ try{
     })()`);
     for(const b of results){assert(b.contrast>=4.5,'Button contrast '+id+' '+JSON.stringify(b));assert.equal(b.opacity,'1');assert(b.border>=2);assert(b.height>=44);}
   };
-  const tab=async id=>{await waitFor('document.querySelector('+JSON.stringify('[data-operation-tab="'+id+'"]:not(:disabled)')+')');await evaluate('document.querySelector('+JSON.stringify('[data-operation-tab="'+id+'"]')+').click()');await waitFor('document.querySelector("[data-operation-tab][aria-current=page]")?.dataset.operationTab==='+JSON.stringify(id));if(['collections','receiving','cargos','pending'].includes(id))await checkButtons(id);};
+  const screenshot=async name=>{if(process.env.LOGISTICA_SCREENSHOTS!=='1')return;const {data}=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(new URL('.tmp/layout-'+name+'.png',repo),Buffer.from(data,'base64'));};
+  const tab=async id=>{await evaluate('document.querySelector(".operation-sidebar details").open=true');await waitFor('document.querySelector('+JSON.stringify('[data-operation-tab="'+id+'"]:not(:disabled)')+')');await evaluate('document.querySelector('+JSON.stringify('[data-operation-tab="'+id+'"]')+').click()');await waitFor('document.querySelector("[data-operation-tab][aria-current=page]")?.dataset.operationTab==='+JSON.stringify(id));if(['collections','receiving','cargos','pending'].includes(id))await checkButtons(id);if(role==='owner'){await delay(100);await screenshot(id+'-'+await evaluate('innerWidth'));}};
   await send('Runtime.enable');await send('Page.enable');
+  for(const width of [1440,390]){
+    await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===390});
+    await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/'});
+    await waitFor('document.querySelector(".product-preview")');
+    assert.equal(await evaluate('document.querySelector(".header-access").getAttribute("href")'),'/operacao/');
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Landing overflow '+width);
+    await screenshot('landing-'+width);
+    loggedOut=true;role='owner';
+    await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/operacao/?login'});
+    await waitFor('document.querySelector("#operation-login")');
+    assert.equal(await evaluate('document.querySelector("#operation-login").elements.email.value'), '');
+    assert.equal(await evaluate('document.querySelector("#operation-login").elements.password.value'), '');
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Login overflow '+width);
+    assert.equal(await evaluate('document.querySelector(".access-back").getAttribute("href")'),'/');
+    await screenshot('login-'+width);
+    await evaluate('(()=>{const f=document.querySelector("#operation-login");f.elements.email.value="invalid";f.elements.password.value="synthetic-only";return f.checkValidity()})()').then(valid=>assert.equal(valid,false));
+    await evaluate('(()=>{const f=document.querySelector("#operation-login");f.elements.email.value="synthetic@example.invalid";f.requestSubmit()})()');
+    await waitFor('document.querySelector("[data-operation-tab=overview]")');
+    assert.equal(await evaluate('document.body.classList.contains("operation-login")'),false);
+    console.log('PASS landing and login '+width+'px; synthetic session only');
+  }
   for(const width of [1440,390]){
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===390});
     for(const currentRole of ['owner','administrative','manager','driver','collector','client','none']){
@@ -137,7 +162,7 @@ try{
         await tab('cargos');await evaluate('document.querySelector("[data-freight-open]").click()');await waitFor('document.querySelector("[data-freight-action=references]")');
         await waitFor('document.querySelector("[data-freight-relations]")?.textContent.includes("Convidar contato")');
         assert(calls.some(c=>c.path==='/api/documents'&&c.action==='list'&&c.input.order_id===uid(13)));
-        await evaluate('document.querySelector("[data-freight-back]").click()');await waitFor('document.querySelector("[data-freight-open]")');
+        await evaluate('document.querySelector("[data-freight-back]").click()');await waitFor('document.querySelector("[data-freight-filters]")&&document.querySelector("[data-freight-open]")');
         await tab('receiving');
         await evaluate('(()=>{const f=document.querySelector("[data-direct-receipt]");f.elements.destination_address_id.value='+JSON.stringify(uid(80))+';f.elements.destination_address_id.dispatchEvent(new Event("change",{bubbles:true}));})()');
         assert.equal(await evaluate('document.querySelector("[data-direct-receipt]").elements.destination.value'),'Destination street 900');
@@ -166,7 +191,7 @@ try{
         await waitFor('document.querySelector("[data-freight-action=references]")?.dataset.version==="6"');
 
         await evaluate('document.querySelector("[data-freight-back]").click()');
-        await waitFor('document.querySelector("[data-freight-open]")');
+        await waitFor('document.querySelector("[data-freight-filters]")&&document.querySelector("[data-freight-open]")');
         await evaluate('(()=>{const f=document.querySelector("[data-freight-filters]");f.elements.term.value="NF-SYNTHETIC";f.requestSubmit();})()');
         await waitFor('document.querySelectorAll("[data-freight-open]").length===1');
         await evaluate('document.querySelector("[data-freight-open]").click()');
@@ -195,7 +220,7 @@ try{
         assert.equal(await evaluate('!!document.querySelector("[data-operation-tab=administrative]")'),false);
       }else assert.equal(await evaluate('document.querySelector("[data-operation-panel=overview]").textContent.includes("Sem acesso operacional")'),true);
       assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Overflow '+width+' '+role);
-      console.log('PASS browser '+width+'px '+role);
+      if(role==='owner')await screenshot('final-'+width);console.log('PASS browser '+width+'px '+role);
     }
     for(const state of ['empty','denied']){
       role='owner';empty=state==='empty';denied=state==='denied';calls=[];
