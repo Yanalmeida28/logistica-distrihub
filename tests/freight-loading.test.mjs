@@ -14,7 +14,7 @@ test('cargo commands cannot submit while document permissions are still loading'
   return {result:[]};
  };
  const controller=await mountFreight(root,{request,companyId:'company',membership:{role:'owner'},customers:[],branches:[],run:()=>runs++,notify:message=>messages.push(message)});
- const opening=controller.open('synthetic');await new Promise(setImmediate);
+ const opening=controller.open('synthetic');assert(buttons.every(b=>b.disabled),'Previous sheet actions must lock before the first read returns');await new Promise(setImmediate);
  assert(buttons.every(b=>b.disabled));
  root.events.submit({target:{matches:()=>false,dataset:{freightAction:'references'}},preventDefault(){},stopPropagation(){}});
  assert.equal(runs,0);assert(messages.some(m=>m.includes('carregamento completo')));

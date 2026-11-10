@@ -28,5 +28,5 @@ test('record deep link and return keep list filters; task switching does not que
   root.events.click({target:{closest:selector=>selector==='[data-collection-back]'?{}:null}});await new Promise(setImmediate);
   assert(!root.innerHTML.includes('data-collection-back'));assert(root.innerHTML.includes('data-order-card="confirmed"'));
   assert.equal(await controller.setTask('cargos'),false);assert(!root.innerHTML.includes('data-collection="advance"'));
-  await controller.setTask('receiving',{orderId:'outside-window'});assert(root.innerHTML.includes('Registro fora deste recorte ou sem acesso'));assert.deepEqual(calls,[{path:'collections',action:'list'},{path:'pickup-addresses',action:'list'}]);
+  await controller.setTask('receiving',{orderId:'outside-window'});assert(root.innerHTML.includes('Registro fora deste recorte ou sem acesso'));assert.deepEqual(calls,[{path:'collections',action:'list'},{path:'pickup-addresses',action:'list'},{path:'destination-addresses',action:'list'}]);
 });

@@ -39,8 +39,8 @@ body{background:var(--surface)}.operation-header{background:#edf3f7;color:var(--
 .freight-facts{display:grid;grid-template-columns:minmax(120px,180px) minmax(0,1fr);gap:12px 20px;padding:20px;background:#eff6ff;border:1px solid #647b9d;border-radius:12px}.freight-facts dt{font-weight:700;color:#153b91}.freight-facts dd{margin:0;overflow-wrap:anywhere}#operation [data-direct-path]>summary{min-height:48px;color:#153b91;font-weight:700;cursor:pointer;padding:12px 0}#operation [data-freight-action]{padding:16px;border:1px solid #647b9d;border-radius:10px;margin:16px 0}#operation [data-freight-action] label{margin-bottom:12px}@media(max-width:700px){.freight-facts{grid-template-columns:1fr;gap:6px}.freight-facts dd{margin-bottom:12px}#operation [data-freight-back]{width:100%}}
 
 /* Visible button boundaries in forms, task menus and record actions. */
-#operation button{border:2px solid #647b9d;border-radius:9px;min-height:44px;padding:10px 14px;font-weight:700;background:#fff;color:#153b91}
-#operation button:hover:not(:disabled){border-color:#1d4ed8;background:#dbeafe;color:#102a56}
+#operation .operation-panels button,#operation button{border:2px solid #1d4ed8;border-radius:9px;min-height:44px;padding:10px 14px;font-weight:700;background:#eff6ff;color:#153b91}
+#operation button:hover:not(:disabled){border-color:#153b91;background:#1e40af;color:#fff}
 #operation button.primary,#operation button[aria-current=page]{border-color:#1e40af;background:#1d4ed8;color:#fff}
 #operation button.primary:hover:not(:disabled),#operation button[aria-current=page]:hover:not(:disabled){border-color:#153b91;background:#1e40af;color:#fff}
-#operation button:disabled{opacity:.6}
+#operation .operation-panels button:disabled,#operation button:disabled{opacity:1;background:#e2e8f0;color:#334155;border:2px dashed #64748b;box-shadow:none;cursor:not-allowed}

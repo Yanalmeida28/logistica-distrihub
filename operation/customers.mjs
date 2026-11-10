@@ -16,7 +16,7 @@ export async function mountCustomers(root,{request,companyId,membership,branches
   const editor=root.querySelector('[data-customer-editor]');
   function paint(){
     const result=filterPage(rows.map(row=>({...row,branch_id:row.branch_id??'shared',status:row.active?'active':'inactive'})),state,row=>[row.name,row.document,row.email,row.phone,row.contact_name,row.trade_name].join(' '));state.page=result.page;
-    root.querySelector('[data-customer-rows]').innerHTML=result.rows.map(row=>'<article class="customer-row"><h3>'+esc(row.name)+'</h3><p>'+esc(row.document??'Documento não informado')+' · '+(row.active?'Ativo':'Inativo')+' · '+esc(row.branch_id==='shared'?'Compartilhado na empresa':branches.find(b=>b.id===row.branch_id)?.name??'Filial vinculada')+'</p><p>'+esc([row.contact_name,row.phone,row.email].filter(Boolean).join(' · ')||'Contato não informado')+'</p>'+(owner||row.branch_id!=='shared'?'<button type="button" class="secondary" data-customer-edit="'+esc(row.id)+'">Ver / editar cadastro</button>':'<p>Cadastro compartilhado: edição pelo proprietário.</p>')+'<div class="overview-actions"><button type="button" class="secondary" data-customer-pickups="'+esc(row.id)+'">Endere?os de coleta</button></div></article>').join('')||'<p>Nenhum cliente encontrado nesta seleção.</p>';
+    root.querySelector('[data-customer-rows]').innerHTML=result.rows.map(row=>'<article class="customer-row"><h3>'+esc(row.name)+'</h3><p>'+esc(row.document??'Documento não informado')+' · '+(row.active?'Ativo':'Inativo')+' · '+esc(row.branch_id==='shared'?'Compartilhado na empresa':branches.find(b=>b.id===row.branch_id)?.name??'Filial vinculada')+'</p><p>'+esc([row.contact_name,row.phone,row.email].filter(Boolean).join(' · ')||'Contato não informado')+'</p>'+(owner||row.branch_id!=='shared'?'<button type="button" class="secondary" data-customer-edit="'+esc(row.id)+'">Ver / editar cadastro</button>':'<p>Cadastro compartilhado: edição pelo proprietário.</p>')+'<div class="overview-actions"><button type="button" class="secondary" data-customer-pickups="'+esc(row.id)+'">Endereços de coleta</button><button type="button" class="secondary" data-customer-destinations="'+esc(row.id)+'">Endereços de destino</button></div></article>').join('')||'<p>Nenhum cliente encontrado nesta seleção.</p>';
     root.querySelector('[data-customer-count]').textContent=result.total+' clientes · página '+result.page+' de '+result.pages;
     root.querySelector('[data-customer-prev]').disabled=result.page===1;root.querySelector('[data-customer-next]').disabled=result.page===result.pages;
   }
@@ -26,11 +26,11 @@ export async function mountCustomers(root,{request,companyId,membership,branches
   root.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;
     if(button.matches('[data-customer-prev]')){state.page--;paint();}else if(button.matches('[data-customer-next]')){state.page++;paint();}
     else if(button.matches('[data-customer-cancel]')){if(root.dataset.hasDraft==='true'&&!confirm('Descartar as alterações deste cadastro?'))return;close();}
-    else if(button.matches('[data-customer-pickups]')){
+    else if(button.matches('[data-customer-pickups],[data-customer-destinations]')){
       if(root.dataset.hasDraft==='true'){notify('Salve ou cancele a edição antes de abrir os endereços.',{error:true});return;}
-      const customer=rows.find(row=>row.id===button.dataset.customerPickups);if(!customer)return;
+      const customer=rows.find(row=>row.id===(button.dataset.customerPickups??button.dataset.customerDestinations));if(!customer)return;
       editor.innerHTML='<div data-pickup-manager></div>';
-      void mountPickupAddresses(editor.firstElementChild,{request,companyId,customer,branches,run,notify,onClose:close,onDirty:value=>{root.dataset.hasDraft=String(value);}});
+      void mountPickupAddresses(editor.firstElementChild,{request,companyId,customer,branches,run,notify,place:button.dataset.customerDestinations?'destino':'coleta',endpoint:button.dataset.customerDestinations?'destination-addresses':'pickup-addresses',onClose:close,onDirty:value=>{root.dataset.hasDraft=String(value);}});
     }
     else if(button.matches('[data-customer-new],[data-customer-edit]')){
       if(root.dataset.hasDraft==='true'){notify('Salve ou cancele o cadastro em edição antes de abrir outro.',{error:true});return;}

@@ -4,6 +4,19 @@ import http from 'node:http';
 import {createApi} from '../backend/api.mjs';
 import {databaseConfig} from '../backend/config.mjs';
 const config={enabled:true,url:'http://127.0.0.1:54321',key:'sb_publishable_test_only_not_real'};
+test('saved destination creation routes through a user-scoped resolver for OS and direct cargo',async()=>{
+ const id='00000000-0000-4000-8000-000000000001';let called;
+ const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {data:{id}};}};
+ await server(createApi({config,clientFactory:()=>client}),async base=>{
+  const login=await localFetch(base+'/api/login',{method:'POST',headers,body:JSON.stringify({email:'test@example.invalid',password:'fake'})});const h={...headers,Cookie:login.headers.get('set-cookie').split(';')[0]};
+  const payload={company_id:id,branch_id:id,customer_id:id,pickup_address_id:id,destination_address_id:id,destination:'Ignored text',volumes:2,note:'Synthetic arrival',request_id:id,created_by:'forged'};
+  for(const [path,action,kind] of [['collections','create','collection'],['cargos','create_direct','direct']]){
+   assert.equal((await localFetch(base+'/api/'+path,{method:'POST',headers:h,body:JSON.stringify({...payload,action})})).status,200);
+   assert.equal(called.name,'log_create_with_destination');assert.equal(called.args.p_kind,kind);assert.equal(called.args.p_payload.destination_address_id,id);assert(!('created_by' in called.args.p_payload));
+   assert.equal((await localFetch(base+'/api/'+path,{method:'POST',headers:h,body:JSON.stringify({...payload,action,destination_address_id:'invalid'})})).status,400);
+  }
+ });
+});
 test('freight search and issues require Auth, validate filters and strip forged identity',async()=>{
  const id='00000000-0000-4000-8000-000000000001';let called;
  const client={auth:{signInWithPassword:async()=>({data:{user:{id},session:{expires_at:Math.floor(Date.now()/1000)+3600}}}),getUser:async()=>({data:{user:{id}}})},rpc:async(name,args)=>{called={name,args};return {data:{}};}};

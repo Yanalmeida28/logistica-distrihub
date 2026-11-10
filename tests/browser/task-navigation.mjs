@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 const repo=new URL('../../',import.meta.url),delay=ms=>new Promise(r=>setTimeout(r,ms));
 const uid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),company=uid(1),branch=uid(2),member=uid(3);
 let role='owner',empty=false,denied=false,calls=[],receipts=[],receiptIndex=50;
-let pickupRows=[],issues=[];
+let pickupRows=[],destinationRows=[],issues=[];
 const allOrders=['pending','assigned','collected','received'].map((status,i)=>({id:uid(10+i),company_id:company,branch_id:branch,customer_id:uid(5),assignee_id:member,status,version:1,volumes:2,pickup_address:'Rua sintética '+i,destination:'Destino de teste'}));
 const files=new Map([['/operacao/','operation/index.html'],['/manifest.webmanifest','pwa/manifest.webmanifest'],['/operacao/sw.js','pwa/sw.js'],['/vendor/jspdf.umd.min.js','node_modules/jspdf/dist/jspdf.umd.min.js']]);
 for(const directory of ['operation','app','pwa'])for(const name of fs.readdirSync(new URL(directory+'/',repo)))if(/\.(mjs|css|png)$/.test(name))files.set('/'+directory+'/'+name,directory+'/'+name);
@@ -19,10 +19,11 @@ const server=http.createServer(async(req,res)=>{
     if(pathname==='/api/status')return json(200,{configured:true,mode:'homologation'});
     if(pathname==='/api/workspace')return json(200,{user:{email:'synthetic@example.invalid'},companies:[{id:company,name:'Transportadora sintética',active:true}],memberships:role==='none'?[]:[{id:member,company_id:company,role,active:true}],branches:[{id:branch,company_id:company,name:'Matriz',active:true}],customers:[{id:uid(5),company_id:company,branch_id:null,name:'Cliente sintético',active:true}],vehicles:[],limit:500});
     if(pathname==='/api/customers')return json(200,{records:[{id:uid(5),company_id:company,branch_id:null,name:'Cliente sintético',active:true}]});
-    if(pathname==='/api/pickup-addresses'){
-      if(input.action==='create'){const record={id:uid(62),company_id:company,branch_id:input.branch_id,customer_id:input.customer_id,label:input.label,address:input.address,active:true};pickupRows.push(record);return json(201,{record});}
-      if(input.action==='update'){const record=pickupRows.find(row=>row.id===input.id);Object.assign(record,{label:input.label,address:input.address,active:input.active});return json(200,{record});}
-      return json(200,{records:pickupRows});
+    if(['/api/pickup-addresses','/api/destination-addresses'].includes(pathname)){
+      const addressRows=pathname==='/api/destination-addresses'?destinationRows:pickupRows;
+      if(input.action==='create'){const record={id:uid(pathname==='/api/destination-addresses'?82:62),company_id:company,branch_id:input.branch_id,customer_id:input.customer_id,label:input.label,address:input.address,active:true};addressRows.push(record);return json(201,{record});}
+      if(input.action==='update'){const record=addressRows.find(row=>row.id===input.id);Object.assign(record,{label:input.label,address:input.address,active:input.active});return json(200,{record});}
+      return json(200,{records:addressRows});
     }
     if(pathname==='/api/collections'&&input.action==='create')return json(200,{result:{id:uid(70)}});
     if(pathname==='/api/freight'){
@@ -69,12 +70,21 @@ try{
   const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>reject(Error('CDP timeout '+method)),10000);pending.set(id,{resolve,reject,timer});ws.send(JSON.stringify({id,method,params}));});
   const evaluate=async expression=>{const result=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw Error(result.exceptionDetails.text);return result.result.value;};
   const waitFor=async expression=>{for(let n=0;n<60;n++){if(await evaluate(expression))return;await delay(100);}throw Error('UI timeout: '+expression);};
-  const tab=async id=>{await evaluate('document.querySelector('+JSON.stringify('[data-operation-tab="'+id+'"]')+').click()');await waitFor('document.querySelector("[data-operation-tab][aria-current=page]")?.dataset.operationTab==='+JSON.stringify(id));};
+  const checkButtons=async id=>{
+    const results=await evaluate(`(()=>{
+      const channel=v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;};
+      const lum=color=>{const [r,g,b]=color.match(/[\\d.]+/g).slice(0,3).map(Number).map(channel);return .2126*r+.7152*g+.0722*b;};
+      return [...document.querySelectorAll('[data-operation-panel]:not([hidden]) button')].filter(b=>b.getClientRects().length).map(b=>{const c=getComputedStyle(b),a=lum(c.color),z=lum(c.backgroundColor);return {text:b.textContent.trim(),contrast:(Math.max(a,z)+.05)/(Math.min(a,z)+.05),opacity:c.opacity,border:parseFloat(c.borderTopWidth),height:b.getBoundingClientRect().height};});
+    })()`);
+    for(const b of results){assert(b.contrast>=4.5,'Button contrast '+id+' '+JSON.stringify(b));assert.equal(b.opacity,'1');assert(b.border>=2);assert(b.height>=44);}
+  };
+  const tab=async id=>{await waitFor('document.querySelector('+JSON.stringify('[data-operation-tab="'+id+'"]:not(:disabled)')+')');await evaluate('document.querySelector('+JSON.stringify('[data-operation-tab="'+id+'"]')+').click()');await waitFor('document.querySelector("[data-operation-tab][aria-current=page]")?.dataset.operationTab==='+JSON.stringify(id));if(['collections','receiving','cargos','pending'].includes(id))await checkButtons(id);};
   await send('Runtime.enable');await send('Page.enable');
   for(const width of [1440,390]){
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===390});
     for(const currentRole of ['owner','administrative','manager','driver','collector','client','none']){
       role=currentRole;empty=false;denied=false;calls=[];issues=[];receipts=[{id:uid(90),company_id:company,branch_id:branch,customer_id:uid(5),destination:'Synthetic collected cargo',volumes:2,origin:'collection',order_id:uid(13),status:'received',version:1,nf_reference:null,cte_reference:null}];
+      destinationRows=[{id:uid(80),company_id:company,branch_id:branch,customer_id:uid(5),label:'Entrega loja',address:'Destination street 900',active:true},{id:uid(81),company_id:company,branch_id:branch,customer_id:uid(5),label:'Entrega deposito',address:'Destination street 901',active:true}];
       pickupRows=[{id:uid(60),company_id:company,branch_id:branch,customer_id:uid(5),label:'Loja',address:'Rua sintética 100',active:true},{id:uid(61),company_id:company,branch_id:branch,customer_id:uid(5),label:'Depósito',address:'Galpão sintético 200',active:true}];
       await send('Page.navigate',{url:'http://127.0.0.1:'+server.address().port+'/operacao/?role='+role});
       const first=role==='client'?'relations':['driver','collector'].includes(role)?'collections':'overview';
@@ -107,13 +117,21 @@ try{
         await evaluate('(()=>{const f=document.querySelector("[data-pickup-form]");f.elements.active.value="false";f.requestSubmit();})()');
         await waitFor('document.querySelector("[data-pickup-close]")&&!document.querySelector("[data-pickup-form]")');assert.equal(pickupRows[0].active,false);
         await evaluate('document.querySelector("[data-pickup-close]").click()');
+        await evaluate('document.querySelector("[data-customer-destinations]").click()');await waitFor('document.querySelector("[data-pickup-new]")');
+        assert.equal(await evaluate('document.querySelector("[data-pickup-manager]").textContent.includes("Endere\u00e7os de destino")'),true);
+        await evaluate('document.querySelector("[data-pickup-new]").click()');
+        await evaluate('(()=>{const f=document.querySelector("[data-pickup-form]");f.elements.label.value="Entrega extra";f.elements.address.value="Destination street 902";f.requestSubmit();})()');
+        await waitFor('document.querySelector("[data-pickup-manager]")?.textContent.includes("Entrega extra")&&!document.querySelector("[data-pickup-form]")');assert.equal(destinationRows.length,3);
+        await evaluate('document.querySelector("[data-pickup-close]").click()');
         await tab('collections');await evaluate('document.querySelector("[data-refresh-collections]").click()');
         await waitFor('(()=>{const s=document.querySelector("[name=pickup_address_id]");return s&&Array.from(s.options).some(o=>o.value==='+JSON.stringify(uid(62))+')&&!Array.from(s.options).some(o=>o.value==='+JSON.stringify(uid(60))+');})()');
         assert.equal(await evaluate('Array.from(document.querySelector("[name=pickup_address_id]").options).some(o=>o.value==='+JSON.stringify(uid(60))+')'),false);
         await evaluate('(()=>{const f=document.querySelector("[data-collection=create]");f.elements.pickup_address_id.value='+JSON.stringify(uid(61))+';f.elements.pickup_address_id.dispatchEvent(new Event("change",{bubbles:true}));})()');
         assert.equal(await evaluate('document.querySelector("[name=pickup_address]").value'),'Galpão sintético 200');
         assert.equal(await evaluate('document.querySelector("[name=pickup_address]").readOnly'),true);
-        await evaluate('(()=>{const f=document.querySelector("[data-collection=create]");f.elements.destination.value="Destino sintético";f.elements.volumes.value="2";f.elements.note.value="Coleta no local escolhido";f.requestSubmit();})()');
+        await evaluate('(()=>{const f=document.querySelector("[data-collection=create]");f.elements.destination_address_id.value='+JSON.stringify(uid(81))+';f.elements.destination_address_id.dispatchEvent(new Event("change",{bubbles:true}));})()');
+        assert.equal(await evaluate('document.querySelector("[data-collection=create]").elements.destination.value'),'Destination street 901');
+        await evaluate('(()=>{const f=document.querySelector("[data-collection=create]");f.elements.volumes.value="2";f.elements.note.value="Coleta no local escolhido";f.requestSubmit();})()');
         await waitFor('document.querySelector("[data-collection=create]").elements.destination.value===""');
         assert.equal(calls.find(c=>c.path==='/api/collections'&&c.action==='create').input.pickup_address_id,uid(61));
         await tab('cargos');await evaluate('document.querySelector("[data-freight-open]").click()');await waitFor('document.querySelector("[data-freight-action=references]")');
@@ -121,7 +139,9 @@ try{
         assert(calls.some(c=>c.path==='/api/documents'&&c.action==='list'&&c.input.order_id===uid(13)));
         await evaluate('document.querySelector("[data-freight-back]").click()');await waitFor('document.querySelector("[data-freight-open]")');
         await tab('receiving');
-        await evaluate('(()=>{const f=document.querySelector("[data-direct-receipt]");f.closest("details").open=true;for(const [name,value] of Object.entries({volumes:"2",destination:"Synthetic counter cargo",note:"Synthetic arrival"}))f.elements[name].value=value;f.requestSubmit();f.requestSubmit();})()');
+        await evaluate('(()=>{const f=document.querySelector("[data-direct-receipt]");f.elements.destination_address_id.value='+JSON.stringify(uid(80))+';f.elements.destination_address_id.dispatchEvent(new Event("change",{bubbles:true}));})()');
+        assert.equal(await evaluate('document.querySelector("[data-direct-receipt]").elements.destination.value'),'Destination street 900');
+        await evaluate('(()=>{const f=document.querySelector("[data-direct-receipt]");f.closest("details").open=true;for(const [name,value] of Object.entries({volumes:"2",note:"Synthetic arrival"}))f.elements[name].value=value;f.requestSubmit();f.requestSubmit();})()');
         await waitFor('document.querySelector("[data-operation-tab=cargos]").getAttribute("aria-current")==="page"&&document.querySelector("[data-freight-action=references]")');
         assert.equal(calls.filter(c=>c.path==='/api/cargos'&&c.action==='create_direct').length,1);
         assert.equal(await evaluate('document.querySelector("[data-operation-panel=cargos]").textContent.includes("Chegada direta")'),true);
@@ -152,7 +172,7 @@ try{
         await evaluate('document.querySelector("[data-freight-open]").click()');
         await waitFor('document.querySelector("[data-issue-create]")');
         await evaluate('(()=>{const f=document.querySelector("[data-issue-create]");f.closest("details").open=true;f.elements.note.value="Synthetic damage";f.requestSubmit();f.requestSubmit();})()');
-        await waitFor('document.querySelector("[data-issue-resolve]")');assert.equal(issues.length,1);
+        await waitFor('document.querySelector("[data-issue-resolve] button:not(:disabled)")');assert.equal(issues.length,1);
         await evaluate('(()=>{const f=document.querySelector("[data-issue-resolve]");f.elements.note.value="Synthetic resolution";f.requestSubmit();})()');
         await waitFor('document.querySelector("[data-cargo-issues]")?.textContent.includes("Resolvida")');
         assert.equal(receipts.find(c=>c.id===directId).status,'delivered');

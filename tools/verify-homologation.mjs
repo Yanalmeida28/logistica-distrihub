@@ -17,8 +17,12 @@ for(const name of ['log_team','log_collections','log_portal','log_documents','lo
 }
 const {error:addressError}=await client.rpc('log_collection_from_address',{p_company:null,p_payload:{}});
 assert.equal(addressError?.code,'42501','Criação por endereço deve negar EXECUTE anônimo.');
+const {error:destinationError}=await client.rpc('log_create_with_destination',{p_company:null,p_kind:'direct',p_payload:{}});
+assert.equal(destinationError?.code,'42501','Criação com destino salvo deve negar EXECUTE anônimo.');
 for(const name of ['log_team_invites','log_collection_orders','log_cargos','log_collection_events','log_collection_commands','log_portal_invites','log_portal_grants','log_documents','log_document_grants','log_chat_messages','log_cargo_events','log_cargo_commands','log_customer_pickup_addresses','log_cargo_issues','log_cargo_issue_events','log_cargo_issue_commands']){
   const {error}=await client.from(name).select('*').limit(0);
   assert.equal(error?.code,'42501','Tabela deve negar leitura anonima: '+name);
 }
-console.log('PASS modulos: nove RPCs reconhecidos e sem EXECUTE anonimo; dezesseis tabelas sem leitura anonima. Fluxos autenticados e Storage real com arquivos continuam pendentes.');
+const {error:destinationTableError}=await client.from('log_customer_destination_addresses').select('id').limit(0);
+assert.equal(destinationTableError?.code,'42501','Endereços de destino devem negar leitura anônima.');
+console.log('PASS modulos: dez RPCs reconhecidos e sem EXECUTE anonimo; dezessete tabelas sem leitura anonima. Fluxos autenticados e Storage real com arquivos continuam pendentes.');

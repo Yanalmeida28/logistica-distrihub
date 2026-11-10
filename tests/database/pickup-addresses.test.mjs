@@ -67,5 +67,28 @@ test('multiple pickup addresses: real SQL policies, branch isolation and immutab
    await db.exec('reset role');assert.equal((await q("select has_function_privilege('anon','public.log_collection_from_address(uuid,jsonb)','execute') allowed"))[0].allowed,false);
    assert.equal((await q("select prosecdef from pg_proc where oid='public.log_collection_from_address(uuid,jsonb)'::regprocedure"))[0].prosecdef,false);
   });
+  await t.test('saved destinations support collection and direct arrival with RLS, snapshots and retries',async()=>{
+   const table='public.log_customer_destination_addresses';await as(1);
+   const dest=(await q('insert into '+table+'(company_id,branch_id,customer_id,label,address) values($1,$2,$3,$4,$5) returning *',[company,branch,customer,'Entrega loja','Destino sintético 900']))[0];
+   const second=(await q('insert into '+table+'(company_id,branch_id,customer_id,label,address) values($1,$2,$3,$4,$5) returning *',[company,branch2,customer,'Entrega outra filial','Destino sintético 901']))[0];
+   await assert.rejects(q('insert into '+table+'(company_id,branch_id,customer_id,label,address) values($1,$2,$3,$4,$5)',[company,branch2,local,'Mismatch','Destino inválido']));
+   const create=async(kind,p)=>(await q('select public.log_create_with_destination($1,$2,$3::jsonb) result',[company,kind,JSON.stringify(p)]))[0].result;
+   const args=()=>({branch_id:branch,customer_id:customer,destination_address_id:dest.id,destination:'Forged destination',volumes:2,note:'Synthetic destination receipt',request_id:randomUUID()});
+   await as(3);const p=args(),direct=await create('direct',p);assert.deepEqual(await create('direct',p),direct);
+   const cargo=(await q('select * from public.log_cargos where id=$1',[direct.id]))[0];assert.equal(cargo.destination,dest.address);assert.equal(cargo.order_id,null);assert.equal(cargo.status,'received');
+   const collected=await create('collection',{...args(),pickup_address_id:depot.id,pickup_address:'Forged pickup'});
+   const order=(await q('select * from public.log_collection_orders where id=$1',[collected.id]))[0];assert.equal(order.destination,dest.address);assert.equal(order.pickup_address,depot.address);assert.equal(order.status,'pending');
+   const manualPickup=await create('collection',{...args(),pickup_address:'Manual pickup 100'});assert(manualPickup.id);
+   await assert.rejects(create('direct',{...args(),destination_address_id:second.id}));
+   await assert.rejects(create('direct',{...args(),customer_id:local}));
+   await assert.rejects(q('update '+table+' set branch_id=$1 where id=$2',[branch2,dest.id]));
+   await q('update '+table+' set address=$1 where id=$2',['Destino atualizado 950',dest.id]);
+   assert.equal((await q('select destination from public.log_cargos where id=$1',[direct.id]))[0].destination,dest.address);
+   await assert.rejects(create('direct',p));
+   await q('update '+table+' set active=false where id=$1',[dest.id]);await assert.rejects(create('direct',args()));
+   for(const n of [2,4,5]){await as(n);assert.equal((await q('select id from '+table)).length,0);await assert.rejects(create('direct',{...args(),destination_address_id:second.id}));}
+   await as(null,'anon');await assert.rejects(q('select id from '+table));await assert.rejects(create('direct',args()));
+   await db.exec('reset role');assert.equal((await q("select has_function_privilege('anon','public.log_create_with_destination(uuid,text,jsonb)','execute') allowed"))[0].allowed,false);
+  });
  }finally{await db.close();}
 });
