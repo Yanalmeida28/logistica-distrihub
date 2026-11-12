@@ -24,8 +24,13 @@ const server=http.createServer(async(req,res)=>{
       if(input.action==='history')return json(200,{result:[]});
       if(commercialReplies.has(input.request_id))return json(200,{result:commercialReplies.get(input.request_id)});
       let record;
-      if(input.action==='create'){record={...input,id:uid(600+commercialRecords.length),paid_cents:0,status:'open',version:1};commercialRecords.push(record);}
-      else {record=commercialRecords.find(r=>r.id===input.id);record.paid_cents+=input.amount_cents;record.version++;}
+      if(input.action==='create'){record={...input,id:uid(600+commercialRecords.length),paid_cents:0,status:input.kind==='quotes'?'requested':'open',version:1};commercialRecords.push(record);}
+      else {record=commercialRecords.find(r=>r.id===input.id);record.version++;
+        if(input.action==='pay'){record.paid_cents+=input.amount_cents;if(record.paid_cents===record.amount_cents)record.status='settled';}
+        if(input.action==='cancel')record.status='cancelled';
+        if(input.action==='propose'){record.status='proposed';record.amount_cents=input.amount_cents;record.details={...record.details,terms:input.note,estimated_days:input.estimated_days,valid_until:input.valid_until};}
+        if(input.action==='decision')record.status=input.decision;
+      }
       commercialReplies.set(input.request_id,{...record});
       if(input.action==='pay'&&losePayment){losePayment=false;return json(503,{error:'Synthetic ambiguous confirmation',code:'commercial_uncertain'});}
       return json(200,{result:record});
@@ -149,6 +154,35 @@ try{
           await waitFor(`!document.querySelector('[data-operation-panel=income] [data-commercial-recover]')&&document.querySelector('[data-operation-panel=income]').textContent.includes('Baixado:')`);
           const retries=calls.filter(c=>c.path==='/api/commercial'&&c.action==='pay');assert.equal(retries.length,2);assert.equal(retries[0].input.request_id,retries[1].input.request_id);assert.equal(commercialRecords.at(-1).paid_cents,1000);
           console.log('PASS browser commercial create and recovery reuse the original settlement request without double payment');
+          await evaluate(`(()=>{const f=document.querySelector('[data-operation-panel=income] [data-commercial-action=create]');f.elements.description.value='Rascunho não enviado';f.elements.description.dispatchEvent(new Event('input',{bubbles:true}));const filter=document.querySelector('[data-operation-panel=income] [name=filter_branch]');filter.value='${branch}';filter.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+          assert.equal(await evaluate(`document.querySelector('[data-operation-panel=income] [name=filter_branch]').value`),'');
+          await evaluate(`document.querySelector('[data-operation-panel=income] [data-commercial-refresh]').click()`);
+          assert.equal(await evaluate(`document.querySelector('[data-operation-panel=income] [name=description]').value`),'Rascunho não enviado');
+          await evaluate(`document.querySelector('[data-operation-panel=income] [data-commercial-discard]').click()`);
+          assert.equal(await evaluate(`document.querySelector('[data-operation-panel=income] [name=description]').value`),'');
+          const fillCommercial=async(kind,action,values)=>evaluate(`(()=>{const f=document.querySelector('[data-operation-panel=${kind}] [data-commercial-action=${action}]');if(f.closest('details'))f.closest('details').open=true;for(const [k,v] of Object.entries(${JSON.stringify(values)}))f.elements[k].value=v;f.dispatchEvent(new Event('input',{bubbles:true}));f.requestSubmit();})()`);
+          await fillCommercial('income','pay',{amount:'90,00'});
+          await waitFor(`!document.querySelector('[data-operation-panel=income] [data-commercial-action=pay]')`);
+          assert.equal(commercialRecords.find(r=>r.kind==='income').status,'settled');
+          await tab('quotes');
+          await fillCommercial('quotes','create',{origin:'São Paulo',destination:'Campinas',volumes:'2',weight_kg:'3.5',description:'Cotação de teste'});
+          await waitFor(`document.querySelector('[data-operation-panel=quotes] [data-commercial-action=propose]')`);
+          await fillCommercial('quotes','propose',{amount:'150,00',estimated_days:'2',valid_until:'2099-12-30T12:00',note:'Condições de teste'});
+          await waitFor(`document.querySelector('[data-operation-panel=quotes] [data-commercial-action=decision]')`);
+          await fillCommercial('quotes','decision',{decision:'accepted',note:'Confirmação sintética do cliente'});
+          await waitFor(`!document.querySelector('[data-operation-panel=quotes] [data-commercial-action=decision]')`);
+          assert.equal(commercialRecords.find(r=>r.kind==='quotes').status,'accepted');
+          await tab('expense');
+          await fillCommercial('expense','create',{party:'Posto sintético',description:'Combustível de teste',amount:'25,00'});
+          await waitFor(`document.querySelector('[data-operation-panel=expense] [data-commercial-action=pay]')`);
+          await fillCommercial('expense','cancel',{note:'Registro de teste cancelado'});
+          await waitFor(`!document.querySelector('[data-operation-panel=expense] [data-commercial-action=cancel]')`);
+          assert.equal(commercialRecords.find(r=>r.kind==='expense').status,'cancelled');
+          await evaluate(`document.querySelector('[data-operation-panel=expense] [data-commercial-history]').click()`);
+          await waitFor(`document.querySelector('[data-operation-panel=expense] [data-history] ol')`);
+          await tab('finance');
+          assert.equal(await evaluate(`document.querySelectorAll('[data-operation-panel=finance] .overview-metric').length`),4);
+          console.log('PASS browser quote request/proposal/acceptance, full settlement, expense cancellation/history, finance overview and draft controls');
         }
         await tab('overview');
         await waitFor('document.querySelector("[data-overview-order]")');

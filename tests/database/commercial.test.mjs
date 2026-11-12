@@ -32,8 +32,17 @@ test('commercial workspace persists proposals and settlements with isolation, co
   await assert.rejects(rpc(company,'income','pay',{...payment,expected_version:2,amount_cents:7000,request_id:randomUUID()}));
   await assert.rejects(rpc(company,'income','cancel',{id:income.id,expected_version:2,request_id:randomUUID(),note:'Cancelar com recebimento'}));
   const summary=(await rpc(company,'finance','list')).summary;assert.equal(summary.receivable,6000);assert.equal(summary.received,4000);
+  await assert.rejects(rpc(company,'income','create',{...payload,request_id:randomUUID(),amount_cents:1.5}));
+  await assert.rejects(rpc(company,'income','create',{...payload,request_id:randomUUID(),amount_cents:0}));
+  await assert.rejects(rpc(company,'income','pay',{...payment,expected_version:2,request_id:randomUUID(),date:'2099-01-01'}));
+  const finalPayment={...payment,expected_version:2,request_id:randomUUID(),amount_cents:6000};
+  assert.equal((await rpc(company,'income','pay',finalPayment)).status,'settled');
+  assert.equal((await rpc(company,'income','pay',finalPayment)).paid_cents,10000);
+  await assert.rejects(rpc(company,'income','pay',{...finalPayment,expected_version:3,request_id:randomUUID()}));
+  assert.equal((await rpc(company,'finance','list')).summary.receivable,0);
   const expense=await rpc(company,'expense','create',{...payload,request_id:randomUUID(),category:'fuel'});
   assert.equal((await rpc(company,'expense','cancel',{id:expense.id,expected_version:1,request_id:randomUUID(),note:'Lançamento incorreto'})).status,'cancelled');
+  await assert.rejects(rpc(company,'expense','pay',{...payment,id:expense.id,expected_version:2,request_id:randomUUID()}));
   const quote=await rpc(company,'quotes','create',{...payload,request_id:randomUUID(),customer_id:customer,details:{origin:'São Paulo',destination:'Campinas',volumes:3,weight_kg:10}});
   const proposal=await rpc(company,'quotes','propose',{id:quote.id,expected_version:1,request_id:randomUUID(),amount_cents:25000,estimated_days:3,valid_until:new Date(Date.now()+86400000).toISOString(),note:'Frete porta a porta'});
   assert.equal(proposal.status,'proposed');

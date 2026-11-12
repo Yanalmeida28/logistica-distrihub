@@ -26,6 +26,7 @@ export function mountCommercial(root,{request,companyId,userId,kind,branches,cus
  function paint(){
   const summary=data?.summary??{},rows=data?.rows??[];
   root.innerHTML='<section class="card"><h2>'+title+'</h2><p>'+(kind==='quotes'?'Solicitações e propostas manuais. O aceite não cria coleta nem cobrança automaticamente.':kind==='finance'?'Consolidado dos títulos autorizados da transportadora. Valores baixados são registros manuais, sem conexão bancária.':'Controle de títulos e baixas manuais da transportadora. A mensalidade do aplicativo é separada destes registros.')+'</p><div class="filters">'+selectBranches('filter_branch',true)+'<button type="button" class="secondary" data-commercial-refresh>Atualizar</button></div><p data-commercial-error role="alert"></p>'+
+   '<div class="tip" data-commercial-draft hidden><p>Há uma edição em andamento. Salve ou descarte antes de atualizar a lista.</p><button type="button" class="secondary" data-commercial-discard>Descartar edição</button></div>'+
    (storageError?'<p role="alert">Não foi possível recuperar as confirmações deste navegador. Confira os lançamentos antes de continuar; novos envios estão bloqueados.</p>':'')+
    (pending?'<div class="tip"><p>Há uma confirmação pendente. Recupere a mesma tentativa antes de enviar outra operação.</p><button type="button" class="primary" data-commercial-recover>Recuperar confirmação</button></div>':'')+
    (kind==='finance'?'<div class="overview-metrics">'+[['A receber',summary.receivable],['A pagar',summary.payable],['Recebido',summary.received],['Pago',summary.spent]].map(([label,value])=>'<article class="overview-metric"><span>'+label+'</span><strong>'+money(value??0)+'</strong></article>').join('')+'</div>':'')+
@@ -47,7 +48,7 @@ export function mountCommercial(root,{request,companyId,userId,kind,branches,cus
   if(pending||storageError)root.querySelectorAll('form input,form select,form button').forEach(el=>el.disabled=true);
  }
  function error(failure){const el=root.querySelector('[data-commercial-error]');if(el)el.textContent=failure.message;notify(failure.message,{error:true});}
- async function load(){if(loading||root.dataset.hasDraft)return;loading=true;try{const response=await request('commercial',{company_id:companyId,kind,action:'list',page,branch_id:branch});if(!root.isConnected)return;data=response.result;paint();}catch(failure){if(root.isConnected){if(!data)paint();error(failure);}}finally{loading=false;}}
+ async function load(){if(loading||root.dataset.hasDraft)return;loading=true;const scope=branch+':'+page;try{const response=await request('commercial',{company_id:companyId,kind,action:'list',page,branch_id:branch});if(!root.isConnected||scope!==branch+':'+page||root.dataset.hasDraft)return;data=response.result;paint();}catch(failure){if(root.isConnected&&scope===branch+':'+page){if(!data)paint();error(failure);}}finally{loading=false;if(root.isConnected&&scope!==branch+':'+page&&!root.dataset.hasDraft)void load();}}
  async function send(){if(!pending||mutating||!root.isConnected)return;mutating=true;
   root.querySelectorAll('button,input,select').forEach(el=>el.disabled=true);
   try{await request('commercial',pending);sessionStorage.removeItem(storageKey);pending=null;if(root.isConnected){delete root.dataset.hasDraft;notify('Registro confirmado e salvo.');await load();}}
@@ -56,15 +57,17 @@ export function mountCommercial(root,{request,companyId,userId,kind,branches,cus
   finally{mutating=false;if(root.isConnected)root.querySelector('[data-commercial-recover]')?.removeAttribute('disabled');}
  }
  root.innerHTML='<section class="card"><h2>'+title+'</h2><p>Abra o módulo para consultar os registros.</p></section>';
- root.addEventListener('input',event=>{if(event.target.closest('form'))root.dataset.hasDraft='true';});
- root.addEventListener('submit',event=>{const form=event.target.closest('[data-commercial-action]');if(!form)return;event.preventDefault();event.stopPropagation();if(pending||storageError||mutating)return;
+ root.addEventListener('input',event=>{if(event.target.closest('form')){root.dataset.hasDraft='true';root.querySelector('[data-commercial-draft]').hidden=false;}});
+ root.addEventListener('submit',event=>{const form=event.target.closest('[data-commercial-action]');if(!form)return;event.preventDefault();event.stopPropagation();if(pending||storageError||mutating)return;if(loading){notify('Aguarde a atualização da lista antes de enviar.',{error:true});return;}
   try{const values=Object.fromEntries(new FormData(form));values.action=form.dataset.commercialAction;if(kind==='quotes'&&values.action==='create')values.party=customers.find(c=>c.id===values.customer_id)?.name??'';
    pending={...commercialFields(kind,values),company_id:companyId,kind,request_id:crypto.randomUUID()};sessionStorage.setItem(storageKey,JSON.stringify(pending));void send();
   }catch(failure){pending=null;error(failure);}
  });
- root.addEventListener('change',event=>{if(event.target.name==='filter_branch'){branch=event.target.value;page=1;void load();}});
+ root.addEventListener('change',event=>{if(event.target.name==='filter_branch'){if(root.dataset.hasDraft){event.target.value=branch;notify('Salve ou descarte a edição antes de trocar de filial.',{error:true});return;}branch=event.target.value;page=1;void load();}});
  root.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button||mutating)return;
   if(button.hasAttribute('data-commercial-recover')){void send();return;}
+  if(button.hasAttribute('data-commercial-discard')){if(pending||storageError)return;delete root.dataset.hasDraft;paint();return;}
+  if(root.dataset.hasDraft&&['data-commercial-prev','data-commercial-next','data-commercial-refresh'].some(name=>button.hasAttribute(name))){notify('Salve ou descarte a edição antes de atualizar a lista.',{error:true});return;}
   if(button.hasAttribute('data-commercial-prev')){page--;void load();}if(button.hasAttribute('data-commercial-next')){page++;void load();}if(button.hasAttribute('data-commercial-refresh'))void load();
   if(button.dataset.commercialHistory){button.disabled=true;try{const result=await request('commercial',{company_id:companyId,kind:button.dataset.kind,action:'history',id:button.dataset.commercialHistory});if(root.isConnected){root.querySelector('[data-history="'+button.dataset.commercialHistory+'"]').innerHTML='<ol>'+result.result.map(e=>'<li>'+esc(new Date(e.at).toLocaleString('pt-BR'))+' · '+esc(e.action)+' · '+esc(e.details.note??e.details.method??'Registro confirmado')+'</li>').join('')+'</ol>';}}catch(failure){error(failure);}finally{button.disabled=false;}}
  });
