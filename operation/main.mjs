@@ -1,4 +1,5 @@
 import {mountPending,mountIssuePriorities} from './pending.mjs';
+import {mountCommercial} from './commercial.mjs';
 import {mountFreight} from './freight.mjs';
 import {mountAdministrativeArea} from './admin-area.mjs';
 import {mountCustomers} from './customers.mjs';
@@ -24,7 +25,7 @@ function render(){
   document.body.classList.toggle('operation-authenticated',Boolean(configured&&workspace?.companies?.some(c=>c.active)));
   document.body.classList.toggle('operation-login',Boolean(configured&&!workspace));
   const base='<p class="eyebrow">DISTRIHUB LOGÍSTICA / OPERAÇÃO</p><h1>Sua operação, em um só lugar.</h1>';
-  if(!configured){root.innerHTML=base+'<section class="card"><span class="badge">Operação bloqueada</span><h2>Supabase local ainda não configurado</h2><p>Nenhum banco externo é acessado. Esta área exige o projeto local próprio, a migration de fundação e usuários do Auth. Não usa os dados da demonstração nem recursos do DistriHub.</p><p>Consulte docs/BASE_OPERACIONAL.md para preparar o ambiente. Não informe senhas ou chaves no chat.</p><a class="secondary" href="/app/">Continuar na demonstração</a></section>';return;}
+  if(!configured){root.innerHTML=base+'<section class="card"><span class="badge">Operação bloqueada</span><h2>Ambiente ainda não configurado</h2><p>Configure o banco próprio da logística para acessar a operação.</p></section>';return;}
   if(!workspace){root.innerHTML=loginScreen();return;}
   const companies=workspace.companies.filter(c=>c.active);
   if(!companies.some(c=>c.id===companyId))companyId=companies[0]?.id??'';
@@ -39,11 +40,16 @@ function render(){
   const branches=workspace.branches.filter(b=>b.company_id===companyId),activeBranches=branches.filter(b=>b.active);
   const branchSelect=(shared=false)=>'<label>Filial<select name="branch_id" required>'+(shared&&owner?'<option value="">Compartilhado na empresa</option>':'')+activeBranches.map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>').join('')+'</select></label>';
   const list=(kind,label)=>'<h3>'+label+'</h3>'+workspace[kind].filter(r=>r.company_id===companyId).map(r=>'<div class="operation-list" data-search-row><strong>'+esc(r.name??r.identifier)+'</strong><small> · '+esc(kind==='branches'?'Filial':r.branch_id==null?'Compartilhado na empresa':branches.find(b=>b.id===r.branch_id)?.name??'Filial vinculada')+(r.active?'':' · Inativo')+'</small></div>').join('');
-  root.innerHTML=base+'<div class="tip horizontal"><strong>Ambiente de teste · acesso restrito</strong><p>Cadastros, equipe, coletas, portal, documentos e chat usam o ambiente separado de homologação. Os módulos de cotação, faturamento e despesas da demonstração ainda aguardam conexão operacional.</p></div>'+
+  root.innerHTML=base+'<div class="tip horizontal"><strong>Ambiente de teste · acesso restrito</strong><p>Cadastros, equipe, coletas, portal, documentos e chat usam o ambiente separado de homologação. Cotações, faturamento e despesas estão disponíveis no menu principal.</p></div>'+
     '<div class="filters"><p>Conectado: '+esc(workspace.user.email)+'</p><button type="button" class="secondary" id="operation-refresh">Atualizar dados</button><button type="button" class="secondary" id="operation-logout">Sair</button></div>'+
     (companies.length?'<label>Transportadora<select id="operation-company">'+companies.map(c=>'<option value="'+esc(c.id)+'" '+(c.id===companyId?'selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></label><p>Papel neste vínculo: <strong>'+esc(membership?.role??'sem vínculo ativo')+'</strong>. Permissões são revalidadas no banco.</p>':'<section class="card"><h2>Criar sua transportadora</h2><p>Somente identidade com e-mail confirmado. Uma empresa própria por usuário; funcionário não recebe acesso automático a outras empresas.</p><form id="operation-company-create"><div class="form-grid">'+field('name','Nome da transportadora','maxlength="120" minlength="2"')+field('branch','Primeira filial','maxlength="120" minlength="2"')+'</div><button class="primary">Criar empresa e filial</button></form></section>')+
     (companyId?'<section class="card" data-operation-panel="branches">'+list('branches','Filiais')+(owner?'<form data-record="branches"><div class="form-grid">'+field('name','Nova filial','minlength="2" maxlength="120"')+'</div><button class="secondary">Cadastrar filial</button></form>':'')+'</section><section class="card" data-operation-panel="customers">'+list('customers','Clientes')+(admin?'<form data-record="customers"><div class="form-grid">'+field('name','Nome do cliente','minlength="2" maxlength="120"')+branchSelect(true)+'</div><button class="secondary">Cadastrar cliente</button></form>':'')+'</section><section class="card" data-operation-panel="vehicles">'+list('vehicles','Veículos')+(admin&&activeBranches.length?'<form data-record="vehicles"><div class="form-grid">'+field('identifier','Identificador do veículo','minlength="2" maxlength="40"')+branchSelect()+field('capacity_volumes','Capacidade em volumes','type="number" min="1" max="100000" step="1"')+'</div><button class="secondary">Cadastrar veículo</button></form>':'')+'</section><p class="fine">Listagem inicial limitada a '+workspace.limit+' registros por cadastro. Use o menu lateral para acessar equipe, coletas, portal, documentos e chat conforme seu perfil. Cobranças e edição dos demais cadastros permanecem pendentes.</p>':'');
   const customerRoot=root.querySelector('[data-operation-panel="customers"]');
+  const commercialControllers=new Map();
+  if(admin)for(const kind of ['quotes','finance','income','expense']){
+    const panel=document.createElement('div');panel.dataset.operationPanel=kind;root.append(panel);
+    commercialControllers.set(kind,mountCommercial(panel,{request,companyId,userId:workspace.user.id,kind,branches,customers:workspace.customers.filter(c=>c.company_id===companyId),notify}));
+  }
   if(customerRoot)void mountCustomers(customerRoot,{request,companyId,membership,branches,reload,run,notify});
   root.insertAdjacentHTML('beforeend',managementMarkup({workspace,companyId,membership,mode}));
   const teamRoot=document.createElement('div');teamRoot.dataset.operationPanel='team';root.append(teamRoot);
@@ -73,7 +79,7 @@ function render(){
   overview.querySelector(':scope > .eyebrow')?.remove();
   overview.querySelector(':scope > h1')?.remove();
   const environment=overview.querySelector(':scope > .tip');
-  if(environment){environment.classList.add('operation-environment');environment.innerHTML='<details><summary>Ambiente de teste · acesso restrito</summary><p>Operação online em ambiente separado. Cotação, faturamento e despesas demonstrativos não estão conectados à operação.</p></details>';}
+  if(environment){environment.classList.add('operation-environment');environment.innerHTML='<details><summary>Ambiente de teste · acesso restrito</summary><p>Operação online em ambiente separado. Acesse os módulos pelo menu principal.</p></details>';}
   overview.querySelector(':scope > p:not(.fine)')?.remove();
   overview.querySelector(':scope > .fine')?.remove();
   if(!['owner','administrative','manager','driver','collector','client'].includes(membership?.role))overview.insertAdjacentHTML('beforeend','<section class="card"><h2>Sem acesso operacional</h2><p>Nenhum perfil ativo autorizado nesta transportadora. Consulte seus convites ou solicite a revis\u00e3o do acesso.</p></section>');
@@ -113,6 +119,7 @@ function render(){
     }
     if(id==='summary')id='overview';
     if(!tabs.some(([key])=>key===id))return;
+    if(commercialControllers.has(id))await commercialControllers.get(id).show();
     if(id==='overview')await (await prioritiesReady)?.show();
     if(id==='pending')await (await pendingReady)?.show();
     if(id==='cargos'){const controller=await freightReady;if(!layout.isConnected||!controller)return;if(options.cargoId){if(!await controller.open(options.cargoId))return;}else await controller.show();}
@@ -127,6 +134,7 @@ function render(){
   };
   mountManagementNavigation(panels,navigateTo);
   selectOperationPanel(layout,activeTab);
+  if(commercialControllers.has(activeTab))void commercialControllers.get(activeTab).show();
   if(collectionTasks.includes(activeTab))void collectionsReady.then(controller=>controller?.setTask(activeTab));
   sidebar.addEventListener('click',event=>{
     const button=event.target.closest('[data-operation-tab]');if(button)void navigateTo(button.dataset.operationTab).then(()=>{if(window.innerWidth<=850)sidebar.querySelector('details').open=false;});

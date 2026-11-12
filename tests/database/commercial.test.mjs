@@ -1,0 +1,54 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import {PGlite} from '@electric-sql/pglite';
+test('commercial workspace persists proposals and settlements with isolation, concurrency and safe retries',async()=>{
+ const db=new PGlite();await db.waitReady;
+ const query=async(sql,params=[])=>(await db.query(sql,params)).rows;
+ const users=[randomUUID(),randomUUID(),randomUUID()];
+ const as=async user=>{await db.exec('reset role');await query("select set_config('request.jwt.claim.sub',$1,false)",[user??'']);await db.exec('set role authenticated');};
+ const rpc=async(company,kind,action,payload={})=>(await query('select public.log_commercial($1,$2,$3,$4::jsonb) result',[company,kind,action,JSON.stringify(payload)]))[0].result;
+ try{
+  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;
+   create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,is_anonymous boolean default false);
+   create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+   grant usage on schema auth to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;`);
+  for(const file of (await fs.readdir(new URL('../../supabase/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')&&!f.endsWith('_logistics_private_storage.sql')).sort())await db.exec(await fs.readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+  for(const user of users)await query('insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())',[user,user+'@example.invalid']);
+  await as(users[0]);const company=(await query("select public.log_create_company('Empresa comercial','Matriz') id"))[0].id;
+  const branch=(await query('select id from public.log_branches'))[0].id;
+  const branch2=(await query("insert into public.log_branches(company_id,name) values($1,'Filial 2') returning id",[company]))[0].id;
+  const customer=(await query("insert into public.log_customers(company_id,name) values($1,'Cliente teste') returning id",[company]))[0].id;
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const payload={request_id:randomUUID(),branch_id:branch,party:'Cliente teste',description:'Frete contratado',category:'freight',amount_cents:10000,details:{issued_date:today,due_date:today}};
+  const income=await rpc(company,'income','create',payload);
+  assert.equal((await rpc(company,'income','create',payload)).id,income.id);
+  await assert.rejects(rpc(company,'income','create',{...payload,amount_cents:20000}));
+  const payment={id:income.id,expected_version:1,request_id:randomUUID(),amount_cents:4000,date:today,method:'pix'};
+  const partial=await rpc(company,'income','pay',payment);assert.equal(partial.paid_cents,4000);
+  assert.equal((await rpc(company,'income','pay',payment)).paid_cents,4000);
+  await assert.rejects(rpc(company,'income','pay',{...payment,request_id:randomUUID()}));
+  await assert.rejects(rpc(company,'income','pay',{...payment,expected_version:2,amount_cents:7000,request_id:randomUUID()}));
+  await assert.rejects(rpc(company,'income','cancel',{id:income.id,expected_version:2,request_id:randomUUID(),note:'Cancelar com recebimento'}));
+  const summary=(await rpc(company,'finance','list')).summary;assert.equal(summary.receivable,6000);assert.equal(summary.received,4000);
+  const expense=await rpc(company,'expense','create',{...payload,request_id:randomUUID(),category:'fuel'});
+  assert.equal((await rpc(company,'expense','cancel',{id:expense.id,expected_version:1,request_id:randomUUID(),note:'Lançamento incorreto'})).status,'cancelled');
+  const quote=await rpc(company,'quotes','create',{...payload,request_id:randomUUID(),customer_id:customer,details:{origin:'São Paulo',destination:'Campinas',volumes:3,weight_kg:10}});
+  const proposal=await rpc(company,'quotes','propose',{id:quote.id,expected_version:1,request_id:randomUUID(),amount_cents:25000,estimated_days:3,valid_until:new Date(Date.now()+86400000).toISOString(),note:'Frete porta a porta'});
+  assert.equal(proposal.status,'proposed');
+  assert.equal((await rpc(company,'quotes','decision',{id:quote.id,expected_version:2,request_id:randomUUID(),decision:'accepted',note:'Cliente confirmou por telefone'})).status,'accepted');
+  assert.equal((await rpc(company,'quotes','history',{id:quote.id})).length,3);
+  assert.equal((await rpc(company,'income','list')).total,1); // quote acceptance cannot create revenue silently
+  await assert.rejects(query('select * from public.log_commercial_records'));
+  await db.exec('reset role');
+  const member=(await query("insert into public.log_memberships(company_id,user_id,role) values($1,$2,'administrative') returning id",[company,users[2]]))[0].id;
+  await query('insert into public.log_member_branches(company_id,membership_id,branch_id) values($1,$2,$3)',[company,member,branch2]);
+  await as(users[2]);assert.equal((await rpc(company,'finance','list')).total,0);
+  await assert.rejects(rpc(company,'income','pay',{...payment,expected_version:2,request_id:randomUUID()}));
+  await assert.rejects(rpc(company,'income','create',{...payload,request_id:randomUUID()}));
+  await as(users[1]);const other=(await query("select public.log_create_company('Outra transportadora','Outra filial') id"))[0].id;
+  assert.equal((await rpc(other,'finance','list')).total,0);await assert.rejects(rpc(company,'finance','list'));
+  await db.exec('reset role; set role anon');await assert.rejects(rpc(company,'finance','list'));
+ }finally{await db.close();}
+});

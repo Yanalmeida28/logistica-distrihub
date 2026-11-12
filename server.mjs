@@ -30,6 +30,7 @@ const files = new Map([
   ['/operation/overview.mjs', ['operation/overview.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/navigation.mjs', ['operation/navigation.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/main.mjs', ['operation/main.mjs', 'text/javascript; charset=utf-8']],
+  ['/operation/commercial.mjs', ['operation/commercial.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/team.mjs', ['operation/team.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/pending.mjs', ['operation/pending.mjs', 'text/javascript; charset=utf-8']],
   ['/operation/freight.mjs', ['operation/freight.mjs', 'text/javascript; charset=utf-8']],
@@ -63,7 +64,10 @@ const server = http.createServer(async (request, response) => {
   try { if(await api(request,response))return; }
   catch { response.writeHead(500,{'Content-Type':'application/json','Cache-Control':'no-store'});response.end('{"error":"Serviço local indisponível."}');return; }
   if (!['GET', 'HEAD'].includes(request.method)) { response.writeHead(405, {Allow:'GET, HEAD'}); response.end(); return; }
-  const file = files.get(new URL(request.url, 'http://127.0.0.1').pathname);
+  const pathname=new URL(request.url,'http://127.0.0.1').pathname;
+  if(['/app','/app/','/app/index.html'].includes(pathname)){response.writeHead(302,{Location:'/operacao/','Cache-Control':'no-store'});response.end();return;}
+  if(pathname.startsWith('/app/')&&pathname!=='/app/styles.css'){response.writeHead(404);response.end('Not found');return;}
+  const file = files.get(pathname);
   if (!file) { response.writeHead(404); response.end('Not found'); return; }
   try {
     const content = await fs.readFile(new URL(file[0], import.meta.url));

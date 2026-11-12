@@ -69,6 +69,17 @@ export function createApi({config=databaseConfig(),clientFactory=createClient,cl
         json(res,200,{user:{id:userData.user.id,email:userData.user.email},companies:results[0].data,memberships:results[1].data,branches:results[2].data,customers:results[3].data,vehicles:results[4].data,limit:500});return true;
       }
       if(await handleCollaboration(req,res,{path,client:session.client,body,json,text,UUID}))return true;
+      if(path==='/api/commercial'&&req.method==='POST'){
+        const input=await body(req);
+        if(!UUID.test(input.company_id)||!['quotes','income','expense','finance'].includes(input.kind)||!['list','history','create','propose','decision','pay','cancel'].includes(input.action))throw Error('validation');
+        const payload={...input};delete payload.company_id;delete payload.kind;delete payload.action;
+        if(!['list','history'].includes(input.action)&&!UUID.test(input.request_id))throw Error('validation');
+        if(['history','propose','decision','pay','cancel'].includes(input.action)&&!UUID.test(input.id))throw Error('validation');
+        const {data,error}=await session.client.rpc('log_commercial',{p_company:input.company_id,p_kind:input.kind,p_action:input.action,p_payload:payload});
+        if(error){const pending=['PGRST202','42883','42P01'].includes(error.code),rejected=['P0001','23503','23514','22003','22007','22008','22P02','42501'].includes(error.code);
+          json(res,pending?503:rejected?400:503,{error:pending?'Módulo aguardando instalação da atualização do banco.':rejected?'Operação recusada. Confira campos, saldo, validade e permissões; atualize a lista se o registro mudou.':'Confirmação indisponível. Recupere a mesma tentativa antes de continuar.',code:pending?'commercial_schema_pending':rejected?'commercial_rejected':'commercial_uncertain'});return true;}
+        json(res,200,{result:data});return true;
+      }
       if(path==='/api/collections'&&req.method==='POST'){
         const input=await body(req);
         if(!UUID.test(input.company_id)||!['list','create','assign','release','accept','start','collect','receive','advance'].includes(input.action))throw Error('validation');

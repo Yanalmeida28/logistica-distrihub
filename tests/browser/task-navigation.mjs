@@ -9,6 +9,7 @@ const uid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),company=uid(1
 let loggedOut=false;
 let role='owner',empty=false,denied=false,calls=[],receipts=[],receiptIndex=50;
 let pickupRows=[],destinationRows=[],issues=[];
+let commercialRecords=[],losePayment=true;const commercialReplies=new Map();
 const allOrders=['pending','assigned','collected','received'].map((status,i)=>({id:uid(10+i),company_id:company,branch_id:branch,customer_id:uid(5),assignee_id:member,status,version:1,volumes:2,pickup_address:'Rua sintética '+i,destination:'Destino de teste'}));
 const files=new Map([['/','index.html'],['/styles.css','styles.css'],['/app.js','app.js'],['/operacao/','operation/index.html'],['/manifest.webmanifest','pwa/manifest.webmanifest'],['/operacao/sw.js','pwa/sw.js'],['/vendor/jspdf.umd.min.js','node_modules/jspdf/dist/jspdf.umd.min.js']]);
 for(const directory of ['operation','app','pwa'])for(const name of fs.readdirSync(new URL(directory+'/',repo)))if(/\.(mjs|css|png)$/.test(name))files.set('/'+directory+'/'+name,directory+'/'+name);
@@ -18,6 +19,17 @@ const server=http.createServer(async(req,res)=>{
     let input={};for await(const chunk of req){input=JSON.parse(chunk.toString());}calls.push({path:pathname,action:input.action,input});
     const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
     if(pathname==='/api/status')return json(200,{configured:true,mode:'homologation'});
+    if(pathname==='/api/commercial'){
+      if(input.action==='list'){const rows=commercialRecords.filter(r=>r.kind===input.kind||input.kind==='finance');return json(200,{result:{rows,total:rows.length,page:1,pages:1,summary:{receivable:0,payable:0,received:0,spent:0}}});}
+      if(input.action==='history')return json(200,{result:[]});
+      if(commercialReplies.has(input.request_id))return json(200,{result:commercialReplies.get(input.request_id)});
+      let record;
+      if(input.action==='create'){record={...input,id:uid(600+commercialRecords.length),paid_cents:0,status:'open',version:1};commercialRecords.push(record);}
+      else {record=commercialRecords.find(r=>r.id===input.id);record.paid_cents+=input.amount_cents;record.version++;}
+      commercialReplies.set(input.request_id,{...record});
+      if(input.action==='pay'&&losePayment){losePayment=false;return json(503,{error:'Synthetic ambiguous confirmation',code:'commercial_uncertain'});}
+      return json(200,{result:record});
+    }
     if(pathname==='/api/login'){loggedOut=false;return json(200,{ok:true});}
     if(pathname==='/api/workspace'&&loggedOut)return json(401,{error:'Synthetic session absent'});
     if(pathname==='/api/workspace')return json(200,{user:{email:'synthetic@example.invalid'},companies:[{id:company,name:'Transportadora sintética',active:true}],memberships:role==='none'?[]:[{id:member,company_id:company,role,active:true}],branches:[{id:branch,company_id:company,name:'Matriz',active:true}],customers:[{id:uid(5),company_id:company,branch_id:null,name:'Cliente sintético',active:true}],vehicles:[],limit:500});
@@ -118,6 +130,27 @@ try{
       await waitFor('document.querySelector("[data-operation-tab][aria-current=page]")?.dataset.operationTab==='+JSON.stringify(first));
       await delay(150);
       if(['owner','administrative','manager'].includes(role)){
+        assert.equal(await evaluate(`[...document.querySelectorAll('a')].some(a=>a.getAttribute('href')==='/app/')`),false);
+        for(const module of ['quotes','finance','income','expense']){
+          await tab(module);
+          assert.equal(await evaluate('document.querySelector("[data-operation-panel='+module+']").hidden'),false);
+          assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Commercial overflow '+module+' '+width);
+        }
+        await tab('dispatch');
+        assert.equal(await evaluate('document.querySelector("[data-operation-panel=collections]").textContent.includes("Alocação e motoristas")'),true);
+        if(role==='owner'&&width===1440){
+          await tab('income');
+          await evaluate(`(()=>{const f=document.querySelector('[data-operation-panel=income] [data-commercial-action=create]');f.closest('details').open=true;for(const [k,v] of Object.entries({party:'Pagador sintético',description:'Frete de teste',amount:'100,00'}))f.elements[k].value=v;f.dispatchEvent(new Event('input',{bubbles:true}));f.requestSubmit();})()`);
+          await waitFor(`document.querySelector('[data-operation-panel=income] [data-commercial-action=pay]')`);
+          assert.equal(commercialRecords.at(-1).amount_cents,10000);
+          await evaluate(`(()=>{const f=document.querySelector('[data-operation-panel=income] [data-commercial-action=pay]');f.closest('details').open=true;f.elements.amount.value='10,00';f.requestSubmit();})()`);
+          await waitFor(`document.querySelector('[data-operation-panel=income] [data-commercial-recover]')`);
+          await evaluate(`document.querySelector('[data-operation-panel=income] [data-commercial-recover]').click()`);
+          await waitFor(`!document.querySelector('[data-operation-panel=income] [data-commercial-recover]')&&document.querySelector('[data-operation-panel=income]').textContent.includes('Baixado:')`);
+          const retries=calls.filter(c=>c.path==='/api/commercial'&&c.action==='pay');assert.equal(retries.length,2);assert.equal(retries[0].input.request_id,retries[1].input.request_id);assert.equal(commercialRecords.at(-1).paid_cents,1000);
+          console.log('PASS browser commercial create and recovery reuse the original settlement request without double payment');
+        }
+        await tab('overview');
         await waitFor('document.querySelector("[data-overview-order]")');
         await evaluate('document.querySelector("[data-overview-order][data-overview-task=receiving]").click()');
         await waitFor('document.querySelector("[data-operation-tab=receiving]").getAttribute("aria-current")==="page"');

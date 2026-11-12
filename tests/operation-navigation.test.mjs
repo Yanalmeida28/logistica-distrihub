@@ -5,7 +5,7 @@ import {operationTabs,selectOperationPanel} from '../operation/navigation.mjs';
 test('navigation preserves invitation acceptance before company creation and limits internal modules by role',()=>{
   assert.deepEqual(operationTabs(null,false).map(([id])=>id),['overview','team']);
   const owner=operationTabs('owner',true).map(([id])=>id);
-  assert.deepEqual(owner,['overview','collections','receiving','cargos','pending','administrative','relations','chat']);
+  assert.deepEqual(owner,['overview','collections','dispatch','receiving','cargos','pending','quotes','finance','income','expense','administrative','relations','chat']);
   for(const role of ['client',null]){
     const tabs=operationTabs(role,true).map(([id])=>id);
     assert(!tabs.includes('collections'));assert(!tabs.includes('chat'));assert.equal(tabs.includes('relations'),role==='client');

@@ -7,7 +7,7 @@ const order=(id,status,extra={})=>({id,company_id:'a',branch_id:'b',status,assig
 const data={orders:[order('new','pending'),order('own','assigned'),order('confirmed','collected'),order('cargo','received'),order('foreign','pending',{company_id:'other'})],cargos:[{company_id:'a',branch_id:'b',order_id:'cargo',status:'shipped'},{company_id:'other',branch_id:'b',order_id:'confirmed',status:'delivered'}],workers:[],events:[]};
 
 test('menus prioritize tasks by role; operational routes reuse one collections panel',()=>{
-  for(const role of ['owner','administrative'])assert.deepEqual(operationTabs(role,true).map(([,label])=>label),['Hoje','Coletas','Recebimento','Cargas','Pendências','Gestão','Portal e documentos','Chat da central']);
+  for(const role of ['owner','administrative'])assert.deepEqual(operationTabs(role,true).map(([,label])=>label),['Hoje','Coletas','Alocação e motoristas','Recebimento','Cargas','Ocorrências e pendências','Cotações','Financeiro','Faturamento','Despesas','Gestão','Portal e documentos','Chat da central']);
   for(const role of ['driver','collector'])assert.deepEqual(operationTabs(role,true)[0],['collections','Minhas coletas']);
   assert.deepEqual(operationTabs('client',true)[0],['relations','Minhas cargas']);
   for(const task of ['collections','receiving'])assert.equal(operationPanelId(task),'collections');
